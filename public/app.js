@@ -486,7 +486,7 @@ async function updateProyectoSelect(id, payloadKey, memKey, val) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [payloadKey]: val })
     });
-    if (!res.ok) throw new Error(`Error al actualizar ${payloadKey}`);
+    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || e.error || `Error al actualizar ${payloadKey}`); }
     showToast('Actualizado correctamente');
     
     // Update memory
@@ -1300,7 +1300,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        if (!res.ok) throw new Error('Error al guardar el estado');
+        if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || e.error || 'Error al guardar el estado'); }
         // ── WEBHOOK DISPATCH (kanban drag) ───────────────────
         if (typeof dispatchWebhook === 'function') {
           dispatchWebhook(endpoint, 'update', id, { ...payload, id });
@@ -1475,7 +1475,7 @@ function makeEditable(el, endpoint, id, sheetKey, originalVal) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [mapKey]: newVal })
       });
-      if (!res.ok) throw new Error('Error al actualizar');
+      if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || e.error || 'Error al actualizar'); }
       showToast('Actualizado correctamente');
       // ── WEBHOOK DISPATCH (inline edit) ───────────────────
       if (typeof dispatchWebhook === 'function') {
@@ -1691,7 +1691,7 @@ async function submitActividad(e) {
       body: JSON.stringify(payload)
     });
     
-    if (!res.ok) throw new Error('Error al guardar la actividad');
+    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || e.error || 'Error al guardar la actividad'); }
     
     showToast('<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Actividad registrada correctamente');
     form.reset();

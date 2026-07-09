@@ -71,13 +71,19 @@ async function getSheets() {
   
   if (process.env.GOOGLE_CREDENTIALS) {
     try {
-      authOptions.credentials = typeof process.env.GOOGLE_CREDENTIALS === 'string' 
-        ? JSON.parse(process.env.GOOGLE_CREDENTIALS) 
-        : process.env.GOOGLE_CREDENTIALS;
+      let rawCreds = process.env.GOOGLE_CREDENTIALS.trim();
+      if (rawCreds.startsWith('"') && rawCreds.endsWith('"')) {
+        rawCreds = rawCreds.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\n/g, '\\n').replace(/\\n/g, '\n');
+      }
+      authOptions.credentials = typeof rawCreds === 'string' ? JSON.parse(rawCreds) : rawCreds;
     } catch (e) {
-      console.error('[AUTH] Error parsing GOOGLE_CREDENTIALS env var:', e.message);
+      throw new Error(`[AUTH] Error crítico parseando la variable GOOGLE_CREDENTIALS: ${e.message}. Verifica que el JSON esté bien formado en tu Hosting.`);
     }
   } else {
+    const fs = require('fs');
+    if (!fs.existsSync(path.join(__dirname, 'credentials.json'))) {
+      throw new Error('[AUTH] credentials.json NO ENCONTRADO y GOOGLE_CREDENTIALS no configurado en el servidor.');
+    }
     authOptions.keyFile = path.join(__dirname, 'credentials.json');
   }
 

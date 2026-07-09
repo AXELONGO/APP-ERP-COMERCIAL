@@ -22,7 +22,7 @@ const globalErrorHandler = async (err, req, res, next) => {
 
   res.status(err.status || 500).json({
     success: false,
-    message: process.env.NODE_ENV === 'production' 
+    message: (process.env.NODE_ENV === 'production' && !err.message.includes('[AUTH]'))
       ? 'Error interno del servidor' 
       : err.message,
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
