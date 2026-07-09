@@ -141,7 +141,7 @@ function dispatchWebhook(endpointOrModule, triggerSource, recordId, recordData, 
 function openCampanaModal() {
   const todos = window.prospectosData || [];
   if (todos.length === 0) {
-    showToast('⚠️ No hay prospectos cargados', true);
+    showToast('<i class="ph-fill ph-warning" style="color:#f59e0b; vertical-align:middle; margin-right:4px;"></i> No hay prospectos cargados', true);
     return;
   }
 
@@ -191,9 +191,9 @@ async function submitCampana(e) {
   const checkedIds = Array.from(document.querySelectorAll('.campana-check:checked')).map(cb => cb.value);
   const selectedData = (window.prospectosData || []).filter(p => checkedIds.includes(p['ID Prospectos']));
 
-  if (!copyText) { showToast('⚠️ Escribe el copy antes de enviar', true); return; }
-  if (!promoType) { showToast('⚠️ Selecciona una promoción', true); return; }
-  if (!selectedData.length) { showToast('⚠️ Selecciona al menos un prospecto', true); return; }
+  if (!copyText) { showToast('<i class="ph-fill ph-warning" style="color:#f59e0b; vertical-align:middle; margin-right:4px;"></i> Escribe el copy antes de enviar', true); return; }
+  if (!promoType) { showToast('<i class="ph-fill ph-warning" style="color:#f59e0b; vertical-align:middle; margin-right:4px;"></i> Selecciona una promoción', true); return; }
+  if (!selectedData.length) { showToast('<i class="ph-fill ph-warning" style="color:#f59e0b; vertical-align:middle; margin-right:4px;"></i> Selecciona al menos un prospecto', true); return; }
 
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true;
@@ -227,10 +227,10 @@ async function submitCampana(e) {
 
   try {
     await sendWebhook('prospectos', payload);
-    showToast(`✅ Campaña enviada a ${selectedData.length} prospecto(s)`);
+    showToast(`<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Campaña enviada a ${selectedData.length} prospecto(s)`);
     closeCampanaModal();
   } catch (err) {
-    showToast('❌ Error al enviar campaña', true);
+    showToast('<i class="ph-fill ph-x-circle" style="color:#ef4444; vertical-align:middle; margin-right:4px;"></i> Error al enviar campaña', true);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Enviar Campaña';
@@ -276,9 +276,9 @@ function updateReportePreview(projectId) {
   document.getElementById('reportePreview').innerHTML = `
     <div class="reporte-preview-card">
       <div class="reporte-preview-row"><span>📁 Proyecto</span><strong>${p['Nombre del Proyecto'] || '—'}</strong></div>
-      <div class="reporte-preview-row"><span>📈 Avance</span><strong style="color:#10b981">${avance}</strong></div>
-      <div class="reporte-preview-row"><span>🔁 Etapa</span><span>${etapa || '—'}</span></div>
-      <div class="reporte-preview-row"><span>📅 Próx. Reunión</span><span>${p['Próxima reunión'] || '—'}</span></div>
+      <div class="reporte-preview-row"><span><i class="ph-fill ph-trend-up"></i> Avance</span><strong style="color:#10b981">${avance}</strong></div>
+      <div class="reporte-preview-row"><span><i class="ph-bold ph-arrows-left-right"></i> Etapa</span><span>${etapa || '—'}</span></div>
+      <div class="reporte-preview-row"><span><i class="ph-fill ph-calendar-blank"></i> Próx. Reunión</span><span>${p['Próxima reunión'] || '—'}</span></div>
     </div>`;
 }
 
@@ -287,8 +287,8 @@ async function submitReporte(e) {
   const projectId = document.getElementById('reporte-proyecto').value;
   const note = document.getElementById('reporte-nota').value.trim();
 
-  if (!projectId) { showToast('⚠️ Selecciona un proyecto', true); return; }
-  if (!note) { showToast('⚠️ Escribe una nota antes de enviar', true); return; }
+  if (!projectId) { showToast('<i class="ph-fill ph-warning" style="color:#f59e0b; vertical-align:middle; margin-right:4px;"></i> Selecciona un proyecto', true); return; }
+  if (!note) { showToast('<i class="ph-fill ph-warning" style="color:#f59e0b; vertical-align:middle; margin-right:4px;"></i> Escribe una nota antes de enviar', true); return; }
 
   const p = (window.proyectosData || []).find(x => x['ID Proyectos'] === projectId);
 
@@ -331,10 +331,10 @@ async function submitReporte(e) {
 
   try {
     await sendWebhook('proyectos', payload);
-    showToast('✅ Reporte de status enviado correctamente');
+    showToast('<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Reporte de status enviado correctamente');
     closeReporteModal();
   } catch (err) {
-    showToast('❌ Error al enviar reporte', true);
+    showToast('<i class="ph-fill ph-x-circle" style="color:#ef4444; vertical-align:middle; margin-right:4px;"></i> Error al enviar reporte', true);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Enviar Reporte';

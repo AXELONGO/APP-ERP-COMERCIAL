@@ -444,7 +444,7 @@
     <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
       <div>
         <h2 style="margin:0;font-size:1.2rem;display:flex;align-items:center;gap:8px;">
-          <span style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:6px 10px;border-radius:8px;font-size:14px;">📢</span>
+          <span style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:6px 10px;border-radius:8px;font-size:14px;"><i class="ph-fill ph-megaphone"></i></span>
           Enviar Campaña
         </h2>
         <p id="campanaCount" style="margin:4px 0 0;font-size:13px;color:#6b7280;"></p>
@@ -454,7 +454,7 @@
 
     <!-- Lista de prospectos — se seleccionan aquí mismo -->
     <div style="background:#f9f7ff;border:1px solid #e9d5ff;border-radius:10px;padding:12px;margin-bottom:16px;max-height:220px;overflow-y:auto;">
-      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:#7c3aed;letter-spacing:.5px;">✅ Selecciona los prospectos</p>
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:#7c3aed;letter-spacing:.5px;"><i class="ph-fill ph-check-circle" style="color:#10b981;"></i> Selecciona los prospectos</p>
       <ul id="campanaSelectedList" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:2px;font-size:13px;"></ul>
     </div>
 
@@ -463,8 +463,8 @@
         <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">Promoción *</label>
         <select id="campana-promo" required style="width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;background:#fff;">
           <option value="">Selecciona una promoción...</option>
-          <option value="PROMOCION 1">🏷️ PROMOCION 1</option>
-          <option value="PROMOCION 2">🏷️ PROMOCION 2</option>
+          <option value="PROMOCION 1"><i class="ph-fill ph-tag"></i> PROMOCION 1</option>
+          <option value="PROMOCION 2"><i class="ph-fill ph-tag"></i> PROMOCION 2</option>
         </select>
       </div>
       <div style="margin-bottom:20px;">
@@ -475,7 +475,7 @@
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button type="button" onclick="closeCampanaModal()" style="padding:10px 20px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-size:14px;">Cancelar</button>
         <button type="submit" style="padding:10px 24px;border:none;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;font-weight:600;cursor:pointer;font-size:14px;">
-          📤 Enviar Campaña
+          <i class="ph-fill ph-paper-plane-tilt"></i> Enviar Campaña
         </button>
       </div>
     </form>
@@ -490,7 +490,7 @@
     <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
       <div>
         <h2 style="margin:0;font-size:1.2rem;display:flex;align-items:center;gap:8px;">
-          <span style="background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;padding:6px 10px;border-radius:8px;font-size:14px;">📊</span>
+          <span style="background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;padding:6px 10px;border-radius:8px;font-size:14px;"><i class="ph-fill ph-chart-bar"></i></span>
           Reporte de Status
         </h2>
         <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">Envía un reporte completo del proyecto a n8n</p>
@@ -501,7 +501,7 @@
     <form id="reporteForm" onsubmit="submitReporte(event)">
       <div style="margin-bottom:14px;">
         <div class="modal-field">
-          <label>📁 Proyecto *</label>
+          <label><i class="ph-fill ph-folder"></i> Proyecto *</label>
           <select id="reporte-proyecto" required class="modal-select blue"
             onchange="updateReportePreview(this.value)">
             <option value="">Selecciona un proyecto...</option>
@@ -513,14 +513,14 @@
       <div id="reportePreview" style="margin-bottom:14px;"></div>
 
       <div class="modal-field" style="margin-bottom:20px;">
-        <label>📝 Nota / Observación *</label>
+        <label><i class="ph-fill ph-pencil-simple"></i> Nota / Observación *</label>
         <textarea id="reporte-nota" required rows="3"
           class="modal-textarea"
           placeholder="Escribe una nota o resumen para el reporte..."></textarea>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button type="button" onclick="closeReporteModal()" class="modal-btn-cancel">Cancelar</button>
-        <button type="submit" class="modal-btn-blue">📤 Enviar Reporte</button>
+        <button type="submit" class="modal-btn-blue"><i class="ph-fill ph-paper-plane-tilt"></i> Enviar Reporte</button>
       </div>
     </form>
   </div>

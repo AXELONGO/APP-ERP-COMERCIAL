@@ -118,7 +118,7 @@ const ETAPAS_MAP = {
   '4': '4 → Creación de Contenido',
   '5': '5 → Campaña',
   '6': '6 → Reporte de Resultados',
-  '7': '🔄 Renovación'
+  '7': '<i class="ph-bold ph-arrows-clockwise" style="vertical-align:middle; margin-right:4px;"></i> Renovación'
 };
 
 function formatEtapa(val) {
@@ -199,7 +199,7 @@ async function executeBulkDelete() {
     } catch(e) { console.error(e); }
   }
   
-  showToast(`✅ Se eliminaron ${successCount} registros.`);
+  showToast(`<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Se eliminaron ${successCount} registros.`);
   document.getElementById('btnDeleteMode').disabled = false;
   
   selectedIds.clear();
@@ -243,7 +243,7 @@ function navigateTo(section) {
 
 async function refreshData() {
   loadSection(currentSection);
-  showToast('♻️ Datos actualizados');
+  showToast('<i class="ph-bold ph-arrows-clockwise" style="vertical-align:middle; margin-right:4px;"></i> Datos actualizados');
 }
 
 // ── DATE FILTER LOGIC ───────────────────────────────────────────
@@ -1014,7 +1014,7 @@ function formProyecto() {
           <option>Video</option>
           <option>Diseño gráfico</option>
         </select></div>
-      <div class="form-group"><label>🔄 Etapa Actual del Flujo</label>
+      <div class="form-group"><label><i class="ph-bold ph-arrows-clockwise" style="vertical-align:middle; margin-right:4px;"></i> Etapa Actual del Flujo</label>
         <select name="etapa">
           <option value="1">1 → Activación</option>
           <option value="2">2 → Diagnóstico</option>
@@ -1022,7 +1022,7 @@ function formProyecto() {
           <option value="4">4 → Creación de Contenido</option>
           <option value="5">5 → Campaña</option>
           <option value="6">6 → Reporte de Resultados</option>
-          <option value="7">🔄 Renovación</option>
+          <option value="7"><i class="ph-bold ph-arrows-clockwise" style="vertical-align:middle; margin-right:4px;"></i> Renovación</option>
         </select></div>
       <div class="form-group"><label>Estado del Proyecto</label>
         <select name="estado">
@@ -1177,7 +1177,7 @@ async function submitForm(event, endpoint, id = null) {
     const result = await r.json();
     if (result.success) {
       closeModal();
-      showToast('✅ Registro guardado en Google Sheets');
+      showToast('<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Registro guardado en Google Sheets');
       // ── WEBHOOK DISPATCH ─────────────────────────────────────
       const triggerSrc = id ? 'update' : 'create';
       const recordId   = id || result.id || result.newId || null;
@@ -1187,10 +1187,10 @@ async function submitForm(event, endpoint, id = null) {
       // ─────────────────────────────────────────────────────────
       loadSection(currentSection);
     } else {
-      showToast('❌ Error: ' + result.error, true);
+      showToast('<i class="ph-fill ph-x-circle" style="color:#ef4444; vertical-align:middle; margin-right:4px;"></i> Error: ' + result.error, true);
     }
   } catch (e) {
-    showToast('❌ Error de conexión', true);
+    showToast('<i class="ph-fill ph-x-circle" style="color:#ef4444; vertical-align:middle; margin-right:4px;"></i> Error de conexión', true);
   } finally {
     btn.textContent = 'Guardar';
     btn.disabled = false;
@@ -1693,13 +1693,13 @@ async function submitActividad(e) {
     
     if (!res.ok) throw new Error('Error al guardar la actividad');
     
-    showToast('✅ Actividad registrada correctamente');
+    showToast('<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Actividad registrada correctamente');
     form.reset();
     setTodayDate();
     loadActividades();
   } catch (error) {
     console.error(error);
-    showToast('❌ Ocurrió un error al guardar');
+    showToast('<i class="ph-fill ph-x-circle" style="color:#ef4444; vertical-align:middle; margin-right:4px;"></i> Ocurrió un error al guardar');
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = 'Guardar Actividad';
