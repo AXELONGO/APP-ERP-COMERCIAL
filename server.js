@@ -65,10 +65,23 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── AUTH ─────────────────────────────────────────────────────
 async function getSheets() {
-  const auth = new google.auth.GoogleAuth({
-    keyFile: path.join(__dirname, 'credentials.json'),
+  let authOptions = {
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
+  };
+  
+  if (process.env.GOOGLE_CREDENTIALS) {
+    try {
+      authOptions.credentials = typeof process.env.GOOGLE_CREDENTIALS === 'string' 
+        ? JSON.parse(process.env.GOOGLE_CREDENTIALS) 
+        : process.env.GOOGLE_CREDENTIALS;
+    } catch (e) {
+      console.error('[AUTH] Error parsing GOOGLE_CREDENTIALS env var:', e.message);
+    }
+  } else {
+    authOptions.keyFile = path.join(__dirname, 'credentials.json');
+  }
+
+  const auth = new google.auth.GoogleAuth(authOptions);
   return google.sheets({ version: 'v4', auth: await auth.getClient() });
 }
 
