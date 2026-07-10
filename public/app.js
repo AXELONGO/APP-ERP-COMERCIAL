@@ -214,7 +214,7 @@ function navigateTo(section) {
   document.getElementById(`section-${section}`)?.classList.remove('hidden');
   document.getElementById(`nav-${section}`)?.classList.add('active');
   
-  document.getElementById('btnAdd').style.display = section === 'dashboard' ? 'none' : 'inline-block';
+  document.getElementById('btnAdd').style.display = (section === 'dashboard' || section === 'citas') ? 'none' : 'inline-block';
   document.getElementById('btnDeleteMode').style.display = (section === 'dashboard' || section === 'citas') ? 'none' : 'inline-block';
   if (isDeleteMode) toggleDeleteMode();
 
@@ -225,7 +225,7 @@ function navigateTo(section) {
     proyectos: ['Proyectos', 'Control de proyectos activos'],
     pipeline: ['Pipeline', 'Etapas de entrega por proyecto'],
     tareas: ['Tareas', 'Pendientes del equipo'],
-    citas: ['Citas', 'Agenda de reuniones'],
+    citas: ['Agenda', 'Agenda de reuniones'],
 
     actividades: ['Registrar Actividad', 'Agrega tu avance del día'],
   };
@@ -691,24 +691,25 @@ async function loadCitas() {
       }
     };
   });
-
   const calendarEl = document.getElementById('calendar');
-  if (calendarInstance) calendarInstance.destroy();
+  if (calendarEl) {
+    if (calendarInstance) calendarInstance.destroy();
 
-  calendarInstance = new FullCalendar.Calendar(calendarEl, {
-    initialView: 'dayGridMonth',
-    headerToolbar: {
-      left: 'prev,next today',
-      center: 'title',
-      right: 'dayGridMonth,timeGridWeek,timeGridDay'
-    },
-    events: events,
-    eventClick: function(info) {
-      viewRecord('citas', info.event.id);
-    }
-  });
-  
-  calendarInstance.render();
+    calendarInstance = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'dayGridMonth',
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,timeGridWeek,timeGridDay'
+      },
+      events: events,
+      eventClick: function(info) {
+        viewRecord('citas', info.event.id);
+      }
+    });
+    
+    calendarInstance.render();
+  }
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────
@@ -1705,3 +1706,40 @@ async function submitActividad(e) {
     submitBtn.textContent = 'Guardar Actividad';
   }
 }
+// ── CALENDLY INTEGRATION ──────────────────────────────────────────
+window.addEventListener('message', async (e) => {
+  let data = e.data;
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch(err) { return; }
+  }
+  
+  if (data && data.event && data.event.includes('calendly')) {
+    console.log('Calendly Event:', data.event, data.payload);
+  }
+
+  if (data && data.event === 'calendly.event_scheduled') {
+    const eventUri = data.payload.event.uri;
+    const inviteeUri = data.payload.invitee.uri;
+    
+    try {
+      showToast('Sincronizando cita de Calendly...', false);
+      const res = await fetch(`${API}/api/sync-calendly`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventUri, inviteeUri })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al sincronizar cita');
+      showToast('Cita guardada en Google Sheets');
+      
+      // Fire the webhook for n8n just like the old modal form did
+      if (typeof dispatchWebhook === 'function') {
+         dispatchWebhook('citas', 'create', data.id, data.data);
+      }
+      
+      loadCitas(); // Refresh data in background
+    } catch(err) {
+      showToast(err.message, true);
+    }
+  }
+});

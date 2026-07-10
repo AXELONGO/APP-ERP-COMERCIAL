@@ -43,8 +43,9 @@ let timeOffset = 0;
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SPREADSHEET_ID = '1ZCCirL1JXtQ7UIxcxZN9i6y716xY8NgEEQC3QmJu5gI';
+const CALENDLY_TOKEN = 'eyJraWQiOiIxY2UxZTEzNjE3ZGNmNzY2YjNjZWJjY2Y4ZGM1YmFmYThhNjVlNjg0MDIzZjdjMzJiZTgzNDliMjM4MDEzNWI0IiwidHlwIjoiUEFUIiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJodHRwczovL2F1dGguY2FsZW5kbHkuY29tIiwiaWF0IjoxNzgzNjE1NTM4LCJqdGkiOiJkMTE3ODI0YS0xOTI1LTQwMzItOGE1NC1kYzkxNTdkZjM3MzgiLCJ1c2VyX3V1aWQiOiJhZDc4MWZhYS1jZTBlLTQ3YTgtODhjMi03NThmZDFlNDMyODEiLCJzY29wZSI6ImF2YWlsYWJpbGl0eTpyZWFkIGF2YWlsYWJpbGl0eTp3cml0ZSBldmVudF90eXBlczpyZWFkIGV2ZW50X3R5cGVzOndyaXRlIGxvY2F0aW9uczpyZWFkIHJvdXRpbmdfZm9ybXM6cmVhZCBzaGFyZXM6d3JpdGUgc2NoZWR1bGVkX2V2ZW50czpyZWFkIHNjaGVkdWxlZF9ldmVudHM6d3JpdGUgc2NoZWR1bGluZ19saW5rczp3cml0ZSBncm91cHM6cmVhZCBvcmdhbml6YXRpb25zOnJlYWQgb3JnYW5pemF0aW9uczp3cml0ZSB1c2VyczpyZWFkIGNvbnRhY3RzOnJlYWQgY29udGFjdHM6d3JpdGUgYWN0aXZpdHlfbG9nOnJlYWQgZGF0YV9jb21wbGlhbmNlOndyaXRlIG91dGdvaW5nX2NvbW11bmljYXRpb25zOnJlYWQgd2ViaG9va3M6cmVhZCB3ZWJob29rczp3cml0ZSJ9._f6s26D8U-xb0pHmsp5KUS_VFCj5ht42tRR40x3b7Nft1CRkqXvU8dNieMPNM2fu7wTwVBbaOktElTDxGOYg_g';
 
-// ─── SEGURIDAD ────────────────────────────────────────────────
+// ── INIT SHEETS ────────────────────────────────────────────────────
 // Habilitar Helmet para proteger cabeceras HTTP (con configuración flexible para no romper assets ni iframes)
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -457,7 +458,7 @@ app.get('/api/dashboard', asyncHandler(async (req, res) => {
       tareasPendientes, tareasEnProceso,
       ingresosMensuales, avancePromedio,
       ingresosPorMes, serviciosCount, etapasCount, proximasCitas,
-      totalClientes: clientes.length, totalProyectos: proyectos.length,
+      totalClientes: clientes.length, totalProyectos: projects.length,
     });
 }));
 
@@ -480,8 +481,96 @@ app.post('/api/webhook-proxy', asyncHandler(async (req, res) => {
 }));
 
 
+
+// ── CALENDLY SYNC ─────────────────────────────────────────────────
+app.post('/api/sync-calendly', async (req, res) => {
+  const { eventUri, inviteeUri } = req.body;
+  if (!eventUri || !inviteeUri) return res.status(400).json({ error: 'Missing uris' });
+  try {
+    const fetch = (await import('node-fetch')).default;
+    // 1. Fetch Event Details
+    const eventRes = await fetch(eventUri, { headers: { 'Authorization': `Bearer ${CALENDLY_TOKEN}` } });
+    const eventData = await eventRes.json();
+    console.log('eventData:', eventData);
+    const event = eventData.resource;
+    
+    // 2. Fetch Invitee Details
+    const inviteeRes = await fetch(inviteeUri, { headers: { 'Authorization': `Bearer ${CALENDLY_TOKEN}` } });
+    const inviteeData = await inviteeRes.json();
+    console.log('inviteeData:', inviteeData);
+    const invitee = inviteeData.resource;
+    
+    if (!event) throw new Error('Event resource not found in response');
+    if (!invitee) throw new Error('Invitee resource not found in response');
+    
+    // Extract date and time
+    const startDate = new Date(event.start_time);
+    const dateStr = startDate.toISOString().split('T')[0];
+    const timeStr = startDate.toISOString().split('T')[1].substring(0,5);
+
+    const sheets = await getSheets();
+    
+    // Generate next ID
+    const getRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "'Citas'!A2:A",
+    });
+    const existingData = getRes.data.values || [];
+    const maxNum = existingData.reduce((max, row) => {
+      const m = row[0] ? row[0].match(/\d+/) : null;
+      return m ? Math.max(max, parseInt(m[0], 10)) : max;
+    }, 0);
+    const nextId = `CIT-${(maxNum + 1).toString().padStart(3, '0')}`;
+
+    const rowObj = {
+      'ID Citas': nextId,
+      'Nombre': invitee.name || '',
+      'Fecha de Registro': new Date().toISOString().split('T')[0],
+      'Correo': invitee.email || '',
+      'Teléfono': '',
+      'Fecha de la Cita': dateStr,
+      'Hora de la Cita': timeStr,
+      'Notas': event.name || '',
+      'ID Proyecto': '',
+      'ID Cliente': '',
+      'Tipo': 'Calendly',
+      'Responsable': '',
+      'Resultado': '',
+      'Próxima acción': ''
+    };
+
+    const newRow = [
+      rowObj['ID Citas'],
+      rowObj['Nombre'],
+      rowObj['Fecha de Registro'],
+      rowObj['Correo'],
+      rowObj['Teléfono'],
+      rowObj['Fecha de la Cita'],
+      rowObj['Hora de la Cita'],
+      rowObj['Notas'],
+      rowObj['ID Proyecto'],
+      rowObj['ID Cliente'],
+      rowObj['Tipo'],
+      rowObj['Responsable'],
+      rowObj['Resultado'],
+      rowObj['Próxima acción']
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "'Citas'!A:N",
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [newRow] },
+    });
+
+    res.json({ success: true, id: nextId, data: rowObj });
+  } catch (err) {
+    console.error('Calendly Sync Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
 app.listen(PORT, () => console.log(`\n🚀 ERP LUMARK → http://localhost:${PORT}\n`));
-

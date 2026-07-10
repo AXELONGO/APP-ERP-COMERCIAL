@@ -11,7 +11,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- FullCalendar -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
+  <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
   <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+  <script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
   <!-- Phosphor Icons -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <link rel="stylesheet" href="style.css?v=3">
@@ -73,7 +76,7 @@
       <span class="nav-icon"><i class="ph ph-list-checks"></i></span><span>Tareas</span>
     </a>
     <a href="#" class="nav-item" data-section="citas" id="nav-citas">
-      <span class="nav-icon"><i class="ph ph-calendar"></i></span><span>Citas</span>
+      <span class="nav-icon"><i class="ph ph-calendar"></i></span><span>Agenda</span>
     </a>
 
     <div class="nav-section-label">MÉTRICAS</div>
@@ -367,6 +370,11 @@
 
   <!-- ── CITAS ─────────────────────────────────────────────── -->
   <section class="section hidden" id="section-citas">
+    <div class="table-toolbar" style="margin-bottom: 20px;">
+      <button class="btn btn-primary" style="background: linear-gradient(135deg,#0ea5e9,#2563eb); border:none; gap:6px; display:flex; align-items:center;" onclick="Calendly.initPopupWidget({url: 'https://calendly.com/demiansoberanes7?hide_gdpr_banner=1'});return false;">
+        <i class="ph ph-calendar-plus"></i> Agendar Nueva Cita
+      </button>
+    </div>
     <div class="calendar-container">
       <div id="calendar"></div>
     </div>
@@ -642,7 +650,7 @@
 </style>
 
 <script src="webhooks.js"></script>
-<script src="app.js"></script>
+<script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
-
