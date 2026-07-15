@@ -9,7 +9,6 @@ router.post('/', asyncHandler(async (req, res) => {
   const { eventUri, inviteeUri } = req.body;
   if (!eventUri || !inviteeUri) return res.status(400).json({ error: 'Missing uris' });
   
-  const fetch = (await import('node-fetch')).default;
   // 1. Fetch Event Details
   const eventRes = await fetch(eventUri, { headers: { 'Authorization': `Bearer ${env.CALENDLY_TOKEN}` } });
   const eventData = await eventRes.json();

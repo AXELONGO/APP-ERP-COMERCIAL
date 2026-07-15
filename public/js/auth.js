@@ -10,8 +10,9 @@ export async function initAuth() {
     document.getElementById('app-wrapper').classList.remove('hidden');
     document.getElementById('user-name-display').textContent = user.name;
     document.getElementById('user-role-display').textContent = user.role;
-    if (user.picture) {
-      document.getElementById('user-avatar').src = user.picture;
+    const avatarEl = document.getElementById('user-avatar-text');
+    if (avatarEl && user.name) {
+      avatarEl.textContent = user.name.substring(0, 2).toUpperCase();
     }
     // Inicializar la app original
     initLegacyApp();

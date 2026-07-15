@@ -13,16 +13,22 @@ router.get('/', asyncHandler(async (req, res) => {
     sheetsService.getPublicData('Citas')
   ]);
 
-  const clientesActivos = clientes.filter(c => c['Estado'] === 'Activo').length;
-  const proyectosActivos = proyectos.filter(p => p['Estado del Proyecto'] === 'Activo').length;
-  const proyectosReunion = proyectos.filter(p => p['Estado del Proyecto'] === 'Reunión').length;
-  const tareasPendientes = tareas.filter(t => t['Estado'] === 'Pendiente').length;
-  const tareasEnProceso = tareas.filter(t => t['Estado'] === 'En Proceso').length;
-  const ingresosMensuales = clientes.reduce((s, c) => s + (parseFloat(c['Valor mensual']) || 0), 0);
+  const cArr = Array.isArray(clientes) ? clientes : [];
+  const pArr = Array.isArray(proyectos) ? proyectos : [];
+  const tArr = Array.isArray(tareas) ? tareas : [];
+  const plArr = Array.isArray(pipeline) ? pipeline : [];
+  const prArr = Array.isArray(prospectos) ? prospectos : [];
+  const ciArr = Array.isArray(citas) ? citas : [];
 
-  // % avance por proyecto desde Pipeline
+  const clientesActivos = cArr.filter(c => c['Estado'] === 'Activo').length;
+  const proyectosActivos = pArr.filter(p => p['Estado del Proyecto'] === 'Activo').length;
+  const proyectosReunion = pArr.filter(p => p['Estado del Proyecto'] === 'Reunión').length;
+  const tareasPendientes = tArr.filter(t => t['Estado'] === 'Pendiente').length;
+  const tareasEnProceso = tArr.filter(t => t['Estado'] === 'En Proceso').length;
+  const ingresosMensuales = cArr.reduce((s, c) => s + (parseFloat(c['Valor mensual']) || 0), 0);
+
   const avancePorProyecto = {};
-  pipeline.forEach(p => {
+  plArr.forEach(p => {
     const pid = p['ID Proyecto'];
     if (!pid) return;
     if (!avancePorProyecto[pid]) avancePorProyecto[pid] = 0;
@@ -31,37 +37,34 @@ router.get('/', asyncHandler(async (req, res) => {
   const avances = Object.values(avancePorProyecto).map(n => (n / 6) * 100);
   const avancePromedio = avances.length ? Math.round(avances.reduce((a, b) => a + b, 0) / avances.length) : 0;
 
-  // ingresos por mes
   const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const ingresosPorMes = {};
-  clientes.forEach(c => {
+  cArr.forEach(c => {
     const d = new Date(c['Fecha de Registro']);
     if (isNaN(d)) return;
     const m = meses[d.getMonth()];
     ingresosPorMes[m] = (ingresosPorMes[m] || 0) + (parseFloat(c['Valor mensual']) || 0);
   });
 
-  // servicios
   const serviciosDict = {};
-  clientes.forEach(c => {
+  cArr.forEach(c => {
     const s = c['Servicios'] || 'Otros';
     serviciosDict[s] = (serviciosDict[s] || 0) + 1;
   });
 
-  // prospectos
-  const conversionRate = prospectos.length > 0 ? Math.round((clientes.length / prospectos.length) * 100) : 0;
-  
+  const conversionRate = prArr.length > 0 ? Math.round((cArr.length / prArr.length) * 100) : 0;
+
   const funnel = {
-    'Nuevo': 0, 'Contactado': 0, 'Reunión Agendada': 0, 'Propuesta Enviada': 0, 'Negociación': 0, 'Ganado': 0, 'Perdido': 0
+    'Nuevo': 0, 'Contactado': 0, 'Reunión Agendada': 0, 'Propuesta Enviada': 0,
+    'Negociación': 0, 'Ganado': 0, 'Perdido': 0
   };
-  prospectos.forEach(p => {
+  prArr.forEach(p => {
     const e = p['Etapa'] || 'Nuevo';
     if (funnel[e] !== undefined) funnel[e]++;
   });
 
-  // citas proximas
   const hoy = new Date().toISOString().split('T')[0];
-  const proximasCitas = citas.filter(c => {
+  const proximasCitas = ciArr.filter(c => {
     const fechaCita = c['Fecha de la Cita'] || c['Fecha'];
     if (!fechaCita) return false;
     let isoFecha = fechaCita;
@@ -81,7 +84,7 @@ router.get('/', asyncHandler(async (req, res) => {
       clientesActivos, proyectosActivos, tareasPendientes,
       ingresosMensuales, avancePromedio,
       tareasEnProceso, proyectosReunion,
-      prospectosTotales: prospectos.length,
+      prospectosTotales: prArr.length,
       conversionRate
     },
     charts: {

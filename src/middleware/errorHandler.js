@@ -13,14 +13,15 @@ const globalErrorHandler = async (err, req, res, next) => {
     userAgent: req.headers['user-agent']
   };
 
+  const httpStatus = err.status || err.statusCode || 500;
   await reportBug({
-    level: err.status >= 500 ? 'critical' : 'error',
+    level: httpStatus >= 500 ? 'critical' : 'error',
     message: err.message,
     error: err,
     context
   });
 
-  res.status(err.status || 500).json({
+  res.status(httpStatus).json({
     success: false,
     message: (process.env.NODE_ENV === 'production' && !err.message.includes('[AUTH]'))
       ? 'Error interno del servidor' 

@@ -1,28 +1,22 @@
 // ── GLOBALS ───────────────────────────────────────────────────────
-const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:3000' : '';
-let currentSection = 'dashboard';
+// Note: API, escapeHtml, debounce, showToast, etc. come from js/utils/helpers.js
+// This file keeps backward compatibility with the monolithic version.
+var currentSection = 'dashboard';
+var escapeHtml2 = window.escapeHtml || escapeHtml;
 
-// Helper de seguridad para prevenir XSS
-function escapeHtml(unsafe) {
-  if (unsafe === null || unsafe === undefined) return '';
-  if (typeof unsafe !== 'string') return String(unsafe);
-  return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+// Chart instance registry to prevent memory leaks
 function renderBarChart(canvasId, dataObj, labelStr, colorHex) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
-    const existingChart = Chart.getChart(ctx);
-    if (existingChart) existingChart.destroy();
+    if (chartInstances[canvasId]) {
+      chartInstances[canvasId].destroy();
+      delete chartInstances[canvasId];
+    }
 
     const labels = Object.keys(dataObj);
     const data = Object.values(dataObj);
 
-    new Chart(ctx, {
+    chartInstances[canvasId] = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: labels,
@@ -50,13 +44,15 @@ function renderBarChart(canvasId, dataObj, labelStr, colorHex) {
 function renderDoughnutChart(canvasId, dataObj) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
-    const existingChart = Chart.getChart(ctx);
-    if (existingChart) existingChart.destroy();
+    if (chartInstances[canvasId]) {
+      chartInstances[canvasId].destroy();
+      delete chartInstances[canvasId];
+    }
 
     const labels = Object.keys(dataObj);
     const data = Object.values(dataObj);
 
-    new Chart(ctx, {
+    chartInstances[canvasId] = new Chart(ctx, {
       type: 'doughnut',
       data: {
         labels: labels,
@@ -80,7 +76,7 @@ let chartIngresos, chartServicios;
 let isDeleteMode = false;
 let selectedIds = new Set();
 
-const MAPPING = {
+if (typeof MAPPING === 'undefined') { var MAPPING = {
   nombre: ['Nombre', 'Nombre del Cliente', 'Nombre del Proyecto', 'Nombre/Tema', 'Actividad/Tema', 'Nombre del Contacto'],
   correo: ['Correo', 'Correo Electrónico'],
   telefono: ['Teléfono', 'Teléfono Principal'],
@@ -126,7 +122,7 @@ const MAPPING = {
   proximaaccion: ['Próxima acción']
 };
 
-const ETAPAS_MAP = {
+if (typeof ETAPAS_MAP === 'undefined') { var ETAPAS_MAP = {
   '1': '1 → Activación',
   '2': '2 → Diagnóstico',
   '3': '3 → Calendario de Contenido',
@@ -135,6 +131,7 @@ const ETAPAS_MAP = {
   '6': '6 → Reporte de Resultados',
   '7': '<i class="ph-bold ph-arrows-clockwise" style="vertical-align:middle; margin-right:4px;"></i> Renovación'
 };
+} // end if ETAPAS_MAP undefined
 
 function formatEtapa(val) {
   return ETAPAS_MAP[String(val)] || val || '—';
@@ -358,7 +355,7 @@ window.prospectosData = [];
 async function loadProspectos() {
   if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json());
   window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json());
-  renderPipelineProspectos();
+  loadPipelineProspectos();
   renderProspectosTable();
 }
 
@@ -1337,22 +1334,34 @@ async function submitForm(event, endpoint, id = null) {
   }
 }
 
-// ── TABLE FILTER ──────────────────────────────────────────────────
-function filterTable(tableId, query) {
-  const q = query.toLowerCase();
-  const rows = document.querySelectorAll(`#${tableId} tbody tr`);
-  rows.forEach(row => {
-    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-}
+// ── TABLE FILTER (debounced) ──────────────────────────────────────
+const filterTable = (function() {
+  let timer;
+  return function(tableId, query) {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const q = query.toLowerCase();
+      const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+      rows.forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    }, 200);
+  };
+})();
 
-function filterKanban(boardId, query) {
-  const q = query.toLowerCase();
-  const cards = document.querySelectorAll(`#${boardId} .kanban-card`);
-  cards.forEach(card => {
-    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-}
+const filterKanban = (function() {
+  let timer;
+  return function(boardId, query) {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const q = query.toLowerCase();
+      const cards = document.querySelectorAll(`#${boardId} .kanban-card`);
+      cards.forEach(card => {
+        card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    }, 200);
+  };
+})();
 
 // ── HELPERS ───────────────────────────────────────────────────────
 function truncate(str, n) { return str && str.length > n ? str.substring(0, n) + '...' : (str || ''); }
@@ -1385,9 +1394,11 @@ function emptyState() {
 // ── TOAST ─────────────────────────────────────────────────────────
 function showToast(msg, isError = false) {
   const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.style.borderColor = isError ? 'var(--accent-red)' : 'var(--accent-green)';
-  toast.style.color = isError ? 'var(--accent-red)' : 'var(--accent-green)';
+  if (!toast) return;
+  // Use innerHTML so icons render correctly
+  toast.innerHTML = msg;
+  toast.style.borderColor = isError ? 'var(--red)' : 'var(--green)';
+  toast.style.color = isError ? 'var(--red)' : 'var(--green)';
   toast.classList.remove('hidden');
   setTimeout(() => toast.classList.add('hidden'), 3500);
 }
@@ -1466,11 +1477,11 @@ function initKanbanDragDrop() {
         } else if (isProspectos) {
           payload.etapa = newStatus;
           record['Etapa'] = newStatus;
-          renderPipelineProspectos();
+          loadPipelineProspectos();
         } else {
           payload.estado = newStatus;
           record['Estado'] = newStatus;
-          renderTareas();
+          loadTareas();
         }
 
         showToast(`Moviendo a ${newStatus}...`);

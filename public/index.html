@@ -112,25 +112,17 @@
     </a>
     <div style="flex: 1;"></div>
     <!-- USER INFO COMPONENT -->
-    <div style="padding: 15px; margin: 10px; border-radius: 8px; background: rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px; margin-top: auto;">
-      <img id="user-avatar" src="https://ui-avatars.com/api/?name=User" style="width:40px;height:40px;border-radius:50%;">
+    <div class="user-profile-chip" style="padding: 12px; margin: 10px; border-radius: 12px; background: var(--bg); display: flex; align-items: center; gap: 12px; margin-top: auto; border: 1px solid var(--border); transition: background 0.2s;">
+      <div id="user-avatar-text" style="width: 36px; height: 36px; border-radius: 50%; background: var(--blue-light); color: var(--blue); font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">US</div>
       <div style="flex:1; overflow:hidden;">
-        <div id="user-name-display" style="font-weight:600;font-size:14px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Usuario</div>
-        <div id="user-role-display" style="font-size:12px;color:#9ca3af;">Rol</div>
+        <div id="user-name-display" style="font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Usuario</div>
+        <div id="user-role-display" style="font-size:11px;color:var(--text2);">Rol</div>
       </div>
-      <button onclick="window.logout()" style="background:none;border:none;color:#ef4444;cursor:pointer;" title="Cerrar sesión">
-        <i class="ph ph-sign-out" style="font-size:20px;"></i>
+      <button onclick="window.logout()" style="background:var(--red-light);border:none;color:var(--red);cursor:pointer; width: 32px; height: 32px; border-radius: 8px; display:flex; align-items:center; justify-content:center; transition: background 0.2s;" title="Cerrar sesión" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='var(--red-light)'">
+        <i class="ph ph-sign-out" style="font-size:16px;"></i>
       </button>
     </div>
   </nav>
-
-  <div class="sidebar-footer">
-    <div class="user-avatar">A</div>
-    <div class="user-info">
-      <div class="user-name">Axel S.</div>
-      <div class="user-role">Administrador</div>
-    </div>
-  </div>
 </aside>
 
 <!-- ── MAIN ────────────────────────────────────────────────── -->
@@ -709,12 +701,17 @@
   .modal-btn-purple:active { transform: translateY(0); }
 </style>
 
-<script src="js/api.js?v=17"></script>
-<script src="webhooks.js?v=17"></script>
+<script src="js/api.js?v=18"></script>
+<script src="js/utils/helpers.js?v=18"></script>
+<script src="js/utils/dataLoader.js?v=18"></script>
+<script src="webhooks.js?v=18"></script>
 <script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
 <script src="https://accounts.google.com/gsi/client"></script>
-<script type="module" src="js/main.js?v=17"></script>
-<script src="app.js?v=17"></script>
+<script type="module" src="js/main.js?v=18"></script>
+<script src="js/sections/forms.js?v=18"></script>
+<script src="js/sections/dashboard.js?v=18"></script>
+<script src="js/app/main.js?v=18"></script>
+<script src="app.js?v=18"></script>
 </div>
 </body>
 </html>

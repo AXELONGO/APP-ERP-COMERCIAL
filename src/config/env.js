@@ -17,10 +17,21 @@ const env = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_secret_for_dev_only',
   APP_NAME: process.env.APP_NAME || 'LUMARK',
-  APP_LOGO: process.env.APP_LOGO || 'https://www.tulink.com/wp-content/uploads/2024/09/Logo-Lumark.png'
+  APP_LOGO: process.env.APP_LOGO || 'https://www.tulink.com/wp-content/uploads/2024/09/Logo-Lumark.png',
+
+  CACHE_TTL: process.env.CACHE_TTL || 120,
+  CACHE_CHECK_PERIOD: process.env.CACHE_CHECK_PERIOD || 240,
+  REDIS_URL: process.env.REDIS_URL || '',
+
+  CLUSTER_ENABLED: process.env.CLUSTER_ENABLED === 'true',
+  CLUSTER_WORKERS: parseInt(process.env.CLUSTER_WORKERS, 10) || 0,
+
+  RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000,
+  RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX, 10) || (process.env.NODE_ENV === 'development' ? 2000 : 200),
+
+  GOOGLE_SHEETS_RATE_LIMIT: parseInt(process.env.GOOGLE_SHEETS_RATE_LIMIT, 10) || 10,
 };
 
-// Validaciones críticas
 if (!env.SPREADSHEET_ID) {
   console.error('FATAL: Falta SPREADSHEET_ID en las variables de entorno (.env)');
   process.exit(1);

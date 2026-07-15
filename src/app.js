@@ -4,6 +4,7 @@ const path = require('path');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
+const env = require('./config/env');
 
 const { globalErrorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const registerModules = require('./modules');
@@ -27,8 +28,8 @@ app.use(helmet({
 }));
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'development' ? 2000 : 200, // Límite más alto en local para evitar bloqueos
+  windowMs: env.RATE_LIMIT_WINDOW_MS,
+  max: env.RATE_LIMIT_MAX,
   message: { error: 'Demasiadas peticiones desde esta IP. Por favor intenta de nuevo en 15 minutos.' }
 });
 // Solo aplicar el rate limiter a la API, no a los archivos estáticos

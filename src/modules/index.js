@@ -109,13 +109,16 @@ function registerModules(router) {
     d.responsable !== undefined ? d.responsable : (e[5] || '') // Responsable
   ], 'actividades');
 
-  crudRoutes(router, 'Asesores', 'A:F', (d, e = []) => [
+  crudRoutes(router, 'Asesores', 'A:I', (d, e = []) => [
     e[0] || '',
     d.nombre !== undefined ? d.nombre : (e[1] || ''),
     d.correo !== undefined ? d.correo : (e[2] || ''),
     d.telefono !== undefined ? d.telefono : (e[3] || ''),
     d.fechaRegistro !== undefined ? d.fechaRegistro : (e[4] || new Date().toISOString().split('T')[0]),
-    d.notas !== undefined ? d.notas : (e[5] || '')
+    d.notas !== undefined ? d.notas : (e[5] || ''),
+    d.rol !== undefined ? d.rol : (e[6] || 'Asesor'),
+    d.contraseña !== undefined ? d.contraseña : (e[7] || ''),
+    d.estado !== undefined ? d.estado : (e[8] || 'Activo')
   ], 'asesores');
 }
 
