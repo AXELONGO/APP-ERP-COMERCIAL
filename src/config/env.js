@@ -34,7 +34,6 @@ const env = {
 
 if (!env.SPREADSHEET_ID) {
   console.error('FATAL: Falta SPREADSHEET_ID en las variables de entorno (.env)');
-  process.exit(1);
 }
 if (!env.GOOGLE_CLIENT_ID && env.NODE_ENV === 'production') {
   console.warn('WARNING: Falta GOOGLE_CLIENT_ID en .env. El login fallará en producción.');

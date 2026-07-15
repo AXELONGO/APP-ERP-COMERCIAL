@@ -28,8 +28,17 @@ if (env.CLUSTER_ENABLED && cluster.isMaster) {
   });
 
   const app = require('./src/app');
-  const PORT = env.PORT;
+  const PORT = env.PORT || process.env.PORT || 3000;
+  const HOST = process.env.HOST || '0.0.0.0';
   const prefix = cluster.isWorker ? `[Worker ${process.pid}]` : '';
 
-  app.listen(PORT, () => console.log(`${prefix} ERP LUMARK → http://localhost:${PORT}`));
+  console.log(`[Startup] SPREADSHEET_ID: ${env.SPREADSHEET_ID ? '✓ configurado' : '✗ FALTANTE'}`);
+  console.log(`[Startup] GOOGLE_CLIENT_ID: ${env.GOOGLE_CLIENT_ID ? '✓ configurado' : '✗ FALTANTE'}`);
+  console.log(`[Startup] JWT_SECRET: ${env.JWT_SECRET && env.JWT_SECRET !== 'fallback_secret_for_dev_only' ? '✓ configurado' : '⚠ usando fallback'}`);
+  console.log(`[Startup] GOOGLE_CREDENTIALS: ${env.GOOGLE_CREDENTIALS ? '✓ configurado' : '✗ FALTANTE'}`);
+  console.log(`[Startup] NODE_ENV: ${env.NODE_ENV}`);
+
+  const server = app.listen(PORT, HOST, () => console.log(`${prefix} ERP LUMARK → http://${HOST}:${PORT}`));
+  server.keepAliveTimeout = 65000;
+  server.headersTimeout = 66000;
 }
