@@ -4,6 +4,13 @@
 // Endpoints: CITAS, TAREAS, PROYECTOS, PROSPECTOS
 // ═══════════════════════════════════════════════════════════════════
 
+const WEBHOOK_ENDPOINTS = {
+  citas: 'https://demian405-n8n-free.hf.space/webhook/5649c541-fd91-4f8b-ba90-5da4cd767b96',
+  tareas: 'https://demian405-n8n-free.hf.space/webhook/TAREAS',
+  proyectos: 'https://demian405-n8n-free.hf.space/webhook/PROYECTOS',
+  prospectos: 'https://demian405-n8n-free.hf.space/webhook/PROSPECTOS',
+};
+
 // Mapeo de endpoint interno → nombre del módulo semántico
 const MODULE_NAMES = {
   citas: 'citas',
@@ -69,15 +76,21 @@ function buildPayload(module, triggerSource, recordId, data, formData = null, bu
  * @param {number} attempt - número de intento (para reintentos)
  */
 async function sendWebhook(module, payload, attempt = 1) {
+  const url = WEBHOOK_ENDPOINTS[module];
+  if (!url) {
+    console.warn(`[WEBHOOK] No hay endpoint configurado para el módulo: ${module}`);
+    return;
+  }
+
   try {
     const res = await fetch('/api/webhook-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ module, payload }),
+      body: JSON.stringify({ url, payload }),
     });
 
     if (res.ok) {
-      console.log(`[WEBHOOK ✅] ${payload.event_type} → modulo ${module} (intento ${attempt})`);
+      console.log(`[WEBHOOK ✅] ${payload.event_type} → ${url} (intento ${attempt})`);
       console.log(`[WEBHOOK]   event_id: ${payload.event_id} | record_id: ${payload.record_id}`);
     } else {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -105,8 +118,8 @@ async function sendWebhook(module, payload, attempt = 1) {
  */
 function dispatchWebhook(endpointOrModule, triggerSource, recordId, recordData, buttonInfo = null) {
   const module = MODULE_NAMES[endpointOrModule] || endpointOrModule;
-  const webhookEnabledModules = ['citas', 'tareas', 'proyectos', 'prospectos'];
-  if (!webhookEnabledModules.includes(module)) return; // Silently skip non-webhook modules (clientes, actividades, etc.)
+  const url = WEBHOOK_ENDPOINTS[module];
+  if (!url) return; // Silently skip non-webhook modules (clientes, actividades, etc.)
 
   const payload = buildPayload(
     module,

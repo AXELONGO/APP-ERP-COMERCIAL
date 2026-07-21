@@ -10,44 +10,15 @@
   <title>ERP LUMARK — Panel de Control</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- FullCalendar -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
+  <!-- Calendly -->
   <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
-  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
   <script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
   <!-- Phosphor Icons -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
-  <!-- ── LOGIN SCREEN ────────────────────────────────────────── -->
-  <div id="login-screen" class="hidden" style="flex: 1; width: 100%; display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f3f4f6;text-align:center;padding:20px;">
-    <div style="background:#fff;padding:40px;border-radius:12px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);max-width:400px;width:100%;">
-      <img id="login-logo" src="" alt="Logo" style="max-height:80px;margin-bottom:20px;">
-      <h2 id="login-title" style="margin-bottom:30px;color:#111827;font-weight:600;">Bienvenido</h2>
-      
-      <!-- FORMULARIO TRADICIONAL -->
-      <form id="login-form" style="display:flex; flex-direction:column; gap:15px; margin-bottom: 25px;" onsubmit="event.preventDefault(); window.loginWithEmail();">
-        <input type="email" id="login-email" placeholder="Correo Electrónico" required style="padding:12px; border:1.5px solid #e5e7eb; border-radius:8px; font-size:14px; outline:none; transition:border-color 0.2s;" onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='#e5e7eb'">
-        <input type="password" id="login-password" placeholder="Contraseña" required style="padding:12px; border:1.5px solid #e5e7eb; border-radius:8px; font-size:14px; outline:none; transition:border-color 0.2s;" onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='#e5e7eb'">
-        <button type="submit" class="modal-btn-blue" style="width:100%; margin-top:5px; padding:12px; font-size:15px;">Ingresar al Sistema</button>
-      </form>
-
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom: 25px; color:#9ca3af; font-size:12px; text-transform:uppercase;">
-        <div style="flex:1; height:1px; background:#e5e7eb;"></div>
-        O continuar con
-        <div style="flex:1; height:1px; background:#e5e7eb;"></div>
-      </div>
-
-      <!-- GOOGLE SIGN IN -->
-      <div id="google-signin-button" style="display:flex;justify-content:center;min-height:40px;">
-        <span style="color:#6b7280; font-size:13px; font-style:italic;">Cargando botón de Google...</span>
-      </div>
-    </div>
-  </div>
-
-  <div id="app-wrapper" class="hidden">
   <div class="modal-overlay hidden" id="dateFilterModal" onclick="if(event.target===this) closeDateFilter()">
     <div class="modal" style="max-width: 400px; width: 100%;">
       <div class="modal-header">
@@ -96,33 +67,34 @@
     <a href="#" class="nav-item" data-section="proyectos" id="nav-proyectos">
       <span class="nav-icon"><i class="ph ph-rocket-launch"></i></span><span>Proyectos</span>
     </a>
-    <a href="#" class="nav-item" data-section="pipeline" id="nav-pipeline">
-      <span class="nav-icon"><i class="ph ph-kanban"></i></span><span>Pipeline</span>
-    </a>
-    <a href="#" class="nav-item" data-section="tareas" id="nav-tareas">
-      <span class="nav-icon"><i class="ph ph-list-checks"></i></span><span>Tareas</span>
+    <a href="#" class="nav-item" data-section="tableros" id="nav-tableros">
+      <span class="nav-icon"><i class="ph ph-kanban"></i></span><span>Tableros</span>
     </a>
     <a href="#" class="nav-item" data-section="citas" id="nav-citas">
-      <span class="nav-icon"><i class="ph ph-calendar"></i></span><span>Agenda</span>
+      <span class="nav-icon"><i class="ph ph-calendar"></i></span><span>Citas</span>
     </a>
 
     <div class="nav-section-label">MÉTRICAS</div>
-    <a href="#" class="nav-item" data-section="actividades" id="nav-actividades">
-      <span class="nav-icon"><i class="ph ph-lightning"></i></span><span>Registrar Actividad</span>
-    </a>
-    <div style="flex: 1;"></div>
-    <!-- USER INFO COMPONENT -->
-    <div class="user-profile-chip" style="padding: 12px; margin: 10px; border-radius: 12px; background: var(--bg); display: flex; align-items: center; gap: 12px; margin-top: auto; border: 1px solid var(--border); transition: background 0.2s;">
-      <div id="user-avatar-text" style="width: 36px; height: 36px; border-radius: 50%; background: var(--blue-light); color: var(--blue); font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">US</div>
-      <div style="flex:1; overflow:hidden;">
-        <div id="user-name-display" style="font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Usuario</div>
-        <div id="user-role-display" style="font-size:11px;color:var(--text2);">Rol</div>
-      </div>
-      <button onclick="window.logout()" style="background:var(--red-light);border:none;color:var(--red);cursor:pointer; width: 32px; height: 32px; border-radius: 8px; display:flex; align-items:center; justify-content:center; transition: background 0.2s;" title="Cerrar sesión" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='var(--red-light)'">
-        <i class="ph ph-sign-out" style="font-size:16px;"></i>
-      </button>
+        <a href="#" class="nav-item" data-section="actividades" id="nav-actividades">
+          <span class="nav-icon"><i class="ph ph-lightning"></i></span><span>Registrar Actividad</span>
+        </a>
+
+        <div class="nav-section-label">DOCUMENTOS</div>
+        <a href="#" class="nav-item" data-section="cotizaciones" id="nav-cotizaciones">
+          <span class="nav-icon"><i class="ph ph-file-text"></i></span><span>Cotizaciones</span>
+        </a>
+        <a href="#" class="nav-item" data-section="archivos" id="nav-archivos">
+          <span class="nav-icon"><i class="ph ph-folder"></i></span><span>Archivos</span>
+        </a>
+      </nav>
+
+  <div class="sidebar-footer">
+    <div class="user-avatar">A</div>
+    <div class="user-info">
+      <div class="user-name">Axel S.</div>
+      <div class="user-role">Administrador</div>
     </div>
-  </nav>
+  </div>
 </aside>
 
 <!-- ── MAIN ────────────────────────────────────────────────── -->
@@ -148,7 +120,27 @@
   <!-- ── DASHBOARD ─────────────────────────────────────────── -->
   <section class="section" id="section-dashboard">
     <style>
-
+      .welcome-banner {
+        background: var(--blue-light);
+        border-radius: var(--radius);
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+      }
+      .welcome-banner::after {
+        content: "";
+        position: absolute;
+        top: 0; right: 0; bottom: 0; width: 40%;
+        background: linear-gradient(270deg, rgba(124,58,237,0.1) 0%, transparent 100%);
+        pointer-events: none;
+      }
+      .welcome-title { font-size: 24px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px;}
+      .welcome-info { display: flex; gap: 20px; align-items: center; background: var(--surface); padding: 16px; border-radius: var(--radius-sm); box-shadow: var(--shadow); z-index: 1; position: relative;}
+      .welcome-info .logo-box { background: var(--blue); color: white; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
       
       .dashboard-section-title {
         font-size: 1.25rem;
@@ -286,7 +278,7 @@
     </div>
     <div class="table-card">
       <table id="tableProspectos">
-        <thead><tr><th>ID</th><th>Nombre del Contacto</th><th>Nombre del Negocio</th><th>Correo</th><th>Teléfono</th><th>Medio de Contacto</th><th>Fecha Registro</th><th>Notas</th><th>Asesor</th><th>Situación</th><th>Problema</th><th>Implicación</th><th>Necesidad</th><th>Giro</th></tr></thead>
+        <thead><tr><th>ID</th><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Medio de Contacto</th><th>Fecha Registro</th><th>Notas</th><th>Asesor</th><th>Situación</th><th>Problema</th><th>Implicación</th><th>Necesidad</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -321,22 +313,19 @@
     </div>
   </section>
 
-  <!-- ── PIPELINE ───────────────────────────────────────────── -->
-  <section class="section hidden" id="section-pipeline">
-    <div class="pipeline-tabs-wrapper">
-      <button class="pipeline-tab-btn active" id="tab-pipeline-proyectos" onclick="switchPipeline('proyectos')">
-        <i class="fas fa-project-diagram"></i> Pipeline de Proyectos
-      </button>
-      <button class="pipeline-tab-btn" id="tab-pipeline-prospectos" onclick="switchPipeline('prospectos')">
-        <i class="fas fa-users"></i> Pipeline de Prospectos
-      </button>
+  <!-- ── TABLEROS UNIFICADOS (Pipeline / Pipeline Prospectos / Tareas) ── -->
+  <section class="section hidden" id="section-tableros">
+    <div class="table-toolbar" style="gap:12px; flex-wrap:wrap;">
+      <select id="tableroSelector" class="modal-select" style="width:auto; min-width:220px; padding:8px 32px 8px 12px; font-size:13px;" onchange="switchTablero(this.value)">
+        <option value="pipeline">Pipeline (Proyectos)</option>
+        <option value="pipeline-prospectos">Pipeline Prospectos</option>
+        <option value="tareas">Tareas</option>
+      </select>
+      <input type="text" class="search-input" id="tableroSearch" placeholder="Buscar..." oninput="filterTablero(this.value)" style="flex:1; min-width:150px;">
     </div>
 
-    <!-- PIPELINE PROYECTOS -->
-    <div id="pipeline-proyectos-container">
-      <div class="table-toolbar">
-        <input type="text" class="search-input" placeholder="Buscar en pipeline proyectos..." oninput="filterKanban('kanban-pipeline', this.value)">
-      </div>
+    <!-- Pipeline Proyectos -->
+    <div class="tablero-panel" id="tablero-pipeline">
       <div class="kanban-board" id="kanban-pipeline">
         <div class="kanban-col" data-status="1">
           <h3 class="kanban-col-title">1 → Activación <span class="kanban-count">0</span></h3>
@@ -369,66 +358,57 @@
       </div>
     </div>
 
-    <!-- PIPELINE PROSPECTOS -->
-    <div id="pipeline-prospectos-container" style="display: none;">
-      <div class="table-toolbar">
-        <input type="text" class="search-input" placeholder="Buscar en pipeline prospectos..." oninput="filterKanban('kanban-pipeline-prospectos', this.value)">
-      </div>
+    <!-- Pipeline Prospectos -->
+    <div class="tablero-panel hidden" id="tablero-pipeline-prospectos">
       <div class="kanban-board" id="kanban-pipeline-prospectos">
         <div class="kanban-col" data-status="Nuevo">
-          <h3 class="kanban-col-title">Nuevo <span class="kanban-count">0</span></h3>
+          <h3 class="kanban-col-title">🟢 Nuevo <span class="kanban-count">0</span></h3>
           <div class="kanban-cards"></div>
         </div>
-        <div class="kanban-col" data-status="En proceso">
-          <h3 class="kanban-col-title">En proceso <span class="kanban-count">0</span></h3>
+        <div class="kanban-col" data-status="En Proceso">
+          <h3 class="kanban-col-title">🟡 En Proceso <span class="kanban-count">0</span></h3>
           <div class="kanban-cards"></div>
         </div>
-        <div class="kanban-col" data-status="En espera">
-          <h3 class="kanban-col-title">En espera <span class="kanban-count">0</span></h3>
+        <div class="kanban-col" data-status="Cerrado">
+          <h3 class="kanban-col-title">🔵 Cerrado <span class="kanban-count">0</span></h3>
           <div class="kanban-cards"></div>
         </div>
-        <div class="kanban-col" data-status="Ganando">
-          <h3 class="kanban-col-title">Ganando <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="Cancelado">
-          <h3 class="kanban-col-title">Cancelado <span class="kanban-count">0</span></h3>
+        <div class="kanban-col" data-status="Perdido">
+          <h3 class="kanban-col-title">🔴 Perdido <span class="kanban-count">0</span></h3>
           <div class="kanban-cards"></div>
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- ── TAREAS ─────────────────────────────────────────────── -->
-  <section class="section hidden" id="section-tareas">
-    <div class="table-toolbar">
-      <input type="text" class="search-input" placeholder="Buscar tarea..." oninput="filterKanban('kanban-tareas', this.value)">
-    </div>
-    <div class="kanban-board" id="kanban-tareas">
-      <div class="kanban-col" data-status="Pendiente">
-        <h3 class="kanban-col-title">Pendiente <span class="kanban-count">0</span></h3>
-        <div class="kanban-cards"></div>
-      </div>
-      <div class="kanban-col" data-status="En Proceso">
-        <h3 class="kanban-col-title">En Proceso <span class="kanban-count">0</span></h3>
-        <div class="kanban-cards"></div>
-      </div>
-      <div class="kanban-col" data-status="Terminado">
-        <h3 class="kanban-col-title">Terminado <span class="kanban-count">0</span></h3>
-        <div class="kanban-cards"></div>
+    <!-- Tareas -->
+    <div class="tablero-panel hidden" id="tablero-tareas">
+      <div class="kanban-board" id="kanban-tareas">
+        <div class="kanban-col" data-status="Pendiente">
+          <h3 class="kanban-col-title">Pendiente <span class="kanban-count">0</span></h3>
+          <div class="kanban-cards"></div>
+        </div>
+        <div class="kanban-col" data-status="En Proceso">
+          <h3 class="kanban-col-title">En Proceso <span class="kanban-count">0</span></h3>
+          <div class="kanban-cards"></div>
+        </div>
+        <div class="kanban-col" data-status="Terminado">
+          <h3 class="kanban-col-title">Terminado <span class="kanban-count">0</span></h3>
+          <div class="kanban-cards"></div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- ── CITAS ─────────────────────────────────────────────── -->
   <section class="section hidden" id="section-citas">
-    <div class="table-toolbar" style="margin-bottom: 20px;">
-      <button class="btn btn-primary" style="background: linear-gradient(135deg,#0ea5e9,#2563eb); border:none; gap:6px; display:flex; align-items:center;" onclick="Calendly.initPopupWidget({url: 'https://calendly.com/demiansoberanes7?hide_gdpr_banner=1'});return false;">
-        <i class="ph ph-calendar-plus"></i> Agendar Nueva Cita
-      </button>
+    <div class="table-toolbar">
+      <input type="text" class="search-input" placeholder="Buscar cita..." oninput="filterTable('tableCitas', this.value)">
     </div>
-    <div class="calendar-container">
-      <div id="calendar"></div>
+    <div class="table-card">
+      <table id="tableCitas">
+        <thead><tr><th>ID</th><th>Nombre</th><th>Fecha</th><th>Hora</th><th>Correo</th><th>Teléfono</th><th>Tipo</th><th>Responsable</th><th>Notas</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
   </section>
 
@@ -449,6 +429,7 @@
               <option>Llamadas / prospección</option>
               <option>Creativos</option>
               <option>Videos</option>
+              <option>Envío de correo</option>
               <option>Creación de contenido empresa</option>
               <option>Marcas personales</option>
               <option>Avances y mejoras de negocio</option>
@@ -480,7 +461,47 @@
     </div>
   </section>
 
+  <!-- ── COTIZACIONES ──────────────────────────────────────────── -->
+  <section class="section hidden" id="section-cotizaciones">
+    <div class="table-toolbar">
+      <input type="text" class="search-input" placeholder="Buscar cotización..." oninput="filterTable('tableCotizaciones', this.value)">
+    </div>
+    <div class="table-card">
+      <table id="tableCotizaciones">
+        <thead><tr><th>ID</th><th>Cliente</th><th>Fecha</th><th>Vence</th><th>Email</th><th>Subtotal</th><th>Total</th><th>PDF</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── ARCHIVOS ──────────────────────────────────────────── -->
+  <section class="section hidden" id="section-archivos">
+    <div id="driveBanner"></div>
+    <div class="table-toolbar">
+      <input type="text" class="search-input" placeholder="Buscar archivo..." oninput="filterTable('tableArchivos', this.value)">
+    </div>
+    <div class="table-card">
+      <table id="tableArchivos">
+        <thead><tr><th>ID</th><th>Nombre</th><th>Tipo</th><th>Tamaño</th><th>Fecha Subida</th><th>Proyecto</th><th>Cliente</th><th>Archivo</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <!-- Hidden file input for upload -->
+    <input type="file" id="fileUploadInput" style="display:none" onchange="uploadArchivo(event)">
+  </section>
+
 </main>
+
+<!-- ── CALENDLY MODAL ─────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="calendlyModal" onclick="if(event.target===this) closeCalendlyModal()">
+  <div class="modal" style="max-width: 800px; width: 95%; height: 90vh;">
+    <div class="modal-header">
+      <h2 class="modal-title">Agendar Cita</h2>
+      <button class="modal-close" onclick="closeCalendlyModal()">✕</button>
+    </div>
+    <div class="modal-body" id="calendlyContainer" style="padding:0; height: calc(100% - 60px); overflow:hidden;"></div>
+  </div>
+</div>
 
 <!-- ── MODAL ───────────────────────────────────────────────── -->
 <div class="modal-overlay hidden" id="modalOverlay" onclick="closeModal(event)">
@@ -701,17 +722,8 @@
   .modal-btn-purple:active { transform: translateY(0); }
 </style>
 
-<script src="js/api.js?v=18"></script>
-<script src="js/utils/helpers.js?v=18"></script>
-<script src="js/utils/dataLoader.js?v=18"></script>
-<script src="webhooks.js?v=18"></script>
-<script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
-<script src="https://accounts.google.com/gsi/client"></script>
-<script type="module" src="js/main.js?v=18"></script>
-<script src="js/sections/forms.js?v=18"></script>
-<script src="js/sections/dashboard.js?v=18"></script>
-<script src="js/app/main.js?v=18"></script>
-<script src="app.js?v=18"></script>
-</div>
+<script src="webhooks.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
+

@@ -1,28 +1,26 @@
-# Etapa Base
-FROM node:20-alpine AS base
+FROM node:20-alpine
+
+# Instalar herramientas para sincronización NTP (evita Invalid JWT Signature en Google APIs)
 RUN apk add --no-cache busybox-extras
-RUN addgroup -S lumark && adduser -S lumark -G lumark
+
+# Establecer directorio de trabajo
 WORKDIR /usr/src/app
+
+# Copiar configuración de dependencias
 COPY package*.json ./
 
-# Etapa Desarrollo
-FROM base AS dev
-RUN npm install
-COPY . .
-RUN chmod +x /usr/src/app/entrypoint.sh
-USER lumark
-EXPOSE 3000
-ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
-CMD ["node", "--watch", "server.js"]
+# Instalar solo las dependencias de producción
+RUN npm ci --only=production
 
-# Etapa Producción
-FROM base AS production
-RUN npm ci --only=production && npm cache clean --force
+# Copiar el resto del código (incluyendo credenciales si no están en .dockerignore)
 COPY . .
-RUN chmod +x /usr/src/app/entrypoint.sh && chown -R lumark:lumark /usr/src/app
-USER lumark
+
+# Hacer ejecutable el script de sincronización de tiempo
+RUN chmod +x /usr/src/app/entrypoint.sh
+
+# Exponer el puerto
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+
+# Usar el script de entrada que sincroniza el tiempo y luego levanta el servidor
 ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
 CMD ["node", "server.js"]

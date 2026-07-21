@@ -1,22 +1,17 @@
 // ── GLOBALS ───────────────────────────────────────────────────────
-// Note: API, escapeHtml, debounce, showToast, etc. come from js/utils/helpers.js
-// This file keeps backward compatibility with the monolithic version.
-var currentSection = 'dashboard';
-var escapeHtml2 = window.escapeHtml || escapeHtml;
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:3000' : '';
+let currentSection = 'dashboard';
 
-// Chart instance registry to prevent memory leaks
 function renderBarChart(canvasId, dataObj, labelStr, colorHex) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
-    if (chartInstances[canvasId]) {
-      chartInstances[canvasId].destroy();
-      delete chartInstances[canvasId];
-    }
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) existingChart.destroy();
 
     const labels = Object.keys(dataObj);
     const data = Object.values(dataObj);
 
-    chartInstances[canvasId] = new Chart(ctx, {
+    new Chart(ctx, {
       type: 'bar',
       data: {
         labels: labels,
@@ -44,15 +39,13 @@ function renderBarChart(canvasId, dataObj, labelStr, colorHex) {
 function renderDoughnutChart(canvasId, dataObj) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
-    if (chartInstances[canvasId]) {
-      chartInstances[canvasId].destroy();
-      delete chartInstances[canvasId];
-    }
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) existingChart.destroy();
 
     const labels = Object.keys(dataObj);
     const data = Object.values(dataObj);
 
-    chartInstances[canvasId] = new Chart(ctx, {
+    new Chart(ctx, {
       type: 'doughnut',
       data: {
         labels: labels,
@@ -76,7 +69,7 @@ let chartIngresos, chartServicios;
 let isDeleteMode = false;
 let selectedIds = new Set();
 
-if (typeof MAPPING === 'undefined') { var MAPPING = {
+const MAPPING = {
   nombre: ['Nombre', 'Nombre del Cliente', 'Nombre del Proyecto', 'Nombre/Tema', 'Actividad/Tema', 'Nombre del Contacto'],
   correo: ['Correo', 'Correo Electrónico'],
   telefono: ['Teléfono', 'Teléfono Principal'],
@@ -115,14 +108,18 @@ if (typeof MAPPING === 'undefined') { var MAPPING = {
   problema: ['Problema'],
   implicacion: ['Implicacion'],
   necesidad: ['Necesidad'],
-  nombrenegocio: ['Nombre del Negocio'],
   giro: ['Giro'],
-  cantidad: ['Cantidad'],
-  indicador: ['Indicador'],
-  proximaaccion: ['Próxima acción']
+  cliente: ['Cliente'],
+  fecha: ['Fecha'],
+  vencimiento: ['Vencimiento'],
+  concepto: ['Concepto'],
+  monto: ['Monto'],
+  impuesto: ['Impuesto'],
+  total: ['Total'],
+  proyecto: ['Proyecto']
 };
 
-if (typeof ETAPAS_MAP === 'undefined') { var ETAPAS_MAP = {
+const ETAPAS_MAP = {
   '1': '1 → Activación',
   '2': '2 → Diagnóstico',
   '3': '3 → Calendario de Contenido',
@@ -131,7 +128,6 @@ if (typeof ETAPAS_MAP === 'undefined') { var ETAPAS_MAP = {
   '6': '6 → Reporte de Resultados',
   '7': '<i class="ph-bold ph-arrows-clockwise" style="vertical-align:middle; margin-right:4px;"></i> Renovación'
 };
-} // end if ETAPAS_MAP undefined
 
 function formatEtapa(val) {
   return ETAPAS_MAP[String(val)] || val || '—';
@@ -226,8 +222,8 @@ function navigateTo(section) {
   document.getElementById(`section-${section}`)?.classList.remove('hidden');
   document.getElementById(`nav-${section}`)?.classList.add('active');
   
-  document.getElementById('btnAdd').style.display = (section === 'dashboard' || section === 'citas') ? 'none' : 'inline-block';
-  document.getElementById('btnDeleteMode').style.display = (section === 'dashboard' || section === 'citas') ? 'none' : 'inline-block';
+  document.getElementById('btnAdd').style.display = (section === 'dashboard' || section === 'tableros') ? 'none' : 'inline-block';
+  document.getElementById('btnDeleteMode').style.display = (section === 'dashboard' || section === 'tableros') ? 'none' : 'inline-block';
   if (isDeleteMode) toggleDeleteMode();
 
   const titles = {
@@ -235,11 +231,11 @@ function navigateTo(section) {
     prospectos: ['Prospectos', 'Contactos en seguimiento'],
     clientes: ['Clientes', 'Base de clientes activos'],
     proyectos: ['Proyectos', 'Control de proyectos activos'],
-    pipeline: ['Pipeline', 'Etapas de entrega por proyecto'],
-    tareas: ['Tareas', 'Pendientes del equipo'],
-    citas: ['Agenda', 'Agenda de reuniones'],
-
+    tableros: ['Tableros', 'Pipeline y tareas'],
+    citas: ['Citas', 'Agenda de reuniones'],
     actividades: ['Registrar Actividad', 'Agrega tu avance del día'],
+    cotizaciones: ['Cotizaciones', 'Cotizaciones y presupuestos'],
+    archivos: ['Archivos', 'Documentos y archivos del negocio'],
   };
   const [title, sub] = titles[section] || ['', ''];
   document.getElementById('pageTitle').textContent = title;
@@ -324,10 +320,11 @@ function loadSection(section) {
     prospectos: loadProspectos,
     clientes: loadClientes,
     proyectos: loadProyectos,
-    pipeline: loadPipeline,
-    tareas: loadTareas,
+    tableros: loadTableros,
     citas: loadCitas,
     actividades: loadActividades,
+    cotizaciones: loadCotizaciones,
+    archivos: loadArchivos,
   };
   loaders[section]?.();
 }
@@ -355,64 +352,47 @@ window.prospectosData = [];
 async function loadProspectos() {
   if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json());
   window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json());
-  loadPipelineProspectos();
-  renderProspectosTable();
-}
-
-function renderProspectosTable() {
   const data = filterByDate(window.prospectosData);
 
   // ── Botón de Campaña movido a index.html estático ──────────
 
   const tbody = document.querySelector('#tableProspectos tbody');
-  tbody.innerHTML = data.length ? data.map(r => {
-    const esc = (key1, key2) => escapeHtml(r[key1] || (key2 ? r[key2] : '') || '');
-    return `
-    <tr class="clickable-row" onclick="viewRecord('prospectos', '${esc('ID Prospectos')}')">
-      <td><input type="checkbox" class="row-checkbox" value="${esc('ID Prospectos')}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"></td>
-      <td><strong>${esc('Nombre del Contacto', 'Nombre') || '—'}</strong></td>
-      <td><strong>${esc('Nombre del Negocio', 'nombreNegocio') || '—'}</strong></td>
-      <td>${esc('Correo Electrónico', 'Correo') || '—'}</td>
-      <td>${esc('Teléfono') || '—'}</td>
-      <td><span class="badge badge-blue">${esc('Medio de contacto') || '—'}</span></td>
-      <td>${esc('Fecha de Registro') || '—'}</td>
-      <td title="${esc('Notas')}">${truncate(esc('Notas'), 40)}</td>
-      <td>${esc('Asesor') || '—'}</td>
-      <td>${esc('Situacion') || '—'}</td>
-      <td>${esc('Problema') || '—'}</td>
-      <td>${esc('Implicacion') || '—'}</td>
-      <td>${esc('Necesidad') || '—'}</td>
-      <td>${esc('Giro') || '—'}</td>
-    </tr>`;
-  }).join('') : emptyState();
+  tbody.innerHTML = data.length ? data.map(r => `
+    <tr class="clickable-row" onclick="viewRecord('prospectos', '${r['ID Prospectos'] || ''}')">
+      <td><input type="checkbox" class="row-checkbox" value="${r['ID Prospectos'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-purple">${r['ID Prospectos'] || '—'}</span></td>
+      <td><strong>${r['Nombre del Contacto'] || '—'}</strong></td>
+      <td>${r['Correo Electrónico'] || '—'}</td>
+      <td>${r['Teléfono'] || '—'}</td>
+      <td><span class="badge badge-blue">${r['Medio de contacto'] || '—'}</span></td>
+      <td>${r['Fecha de Registro'] || '—'}</td>
+      <td title="${r['Notas'] || ''}">${truncate(r['Notas'], 40)}</td>
+      <td>${r['Asesor'] || '—'}</td>
+      <td>${r['Situacion'] || '—'}</td>
+      <td>${r['Problema'] || '—'}</td>
+      <td>${r['Implicacion'] || '—'}</td>
+      <td>${r['Necesidad'] || '—'}</td>
+    </tr>`).join('') : emptyState();
 }
 
 // ── CLIENTES ─────────────────────────────────────────────────────
 window.clientesData = [];
 async function loadClientes() {
   window.clientesData = await fetch(`${API}/api/clientes`).then(r => r.json());
-  renderClientes();
-}
-
-function renderClientes() {
   const data = filterByDate(window.clientesData);
   const tbody = document.querySelector('#tableClientes tbody');
-  tbody.innerHTML = data.length ? data.map(r => {
-    const esc = (k) => escapeHtml(r[k] || '');
-    return `
-    <tr class="clickable-row" onclick="viewRecord('clientes', '${esc('ID Clientes')}')">
-      <td><input type="checkbox" class="row-checkbox" value="${esc('ID Clientes')}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"></td>
-      <td><strong>${esc('Nombre del Cliente') || '—'}</strong></td>
-      <td>${esc('Empresa o Razón Social') || '—'}</td>
-      <td>${esc('Correo Electrónico') || '—'}</td>
-      <td>${esc('Teléfono Principal') || '—'}</td>
-      <td>${statusBadge(esc('Estado'))}</td>
-      <td>${esc('Servicios contratados') || '—'}</td>
+  tbody.innerHTML = data.length ? data.map(r => `
+    <tr class="clickable-row" onclick="viewRecord('clientes', '${r['ID Clientes'] || ''}')">
+      <td><input type="checkbox" class="row-checkbox" value="${r['ID Clientes'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-blue">${r['ID Clientes'] || '—'}</span></td>
+      <td><strong>${r['Nombre del Cliente'] || '—'}</strong></td>
+      <td>${r['Empresa o Razón Social'] || '—'}</td>
+      <td>${r['Correo Electrónico'] || '—'}</td>
+      <td>${r['Teléfono Principal'] || '—'}</td>
+      <td>${statusBadge(r['Estado'])}</td>
+      <td>${r['Servicios contratados'] || '—'}</td>
       <td>${r['Valor mensual'] ? '$' + parseFloat(r['Valor mensual']).toLocaleString() : '—'}</td>
-      <td>${priorityBadge(esc('Prioridad'))}</td>
-      <td>${esc('Giro') || '—'}</td>
-    </tr>`;
-  }).join('') : emptyState();
+      <td>${priorityBadge(r['Prioridad'])}</td>
+      <td>${r['Giro'] || '—'}</td>
+    </tr>`).join('') : emptyState();
 }
 
 // ── PROYECTOS ────────────────────────────────────────────────────
@@ -422,10 +402,6 @@ async function loadProyectos() {
     try { window.citasData = await fetch(`${API}/api/citas`).then(r => r.json()); } catch(e) {}
   }
   window.proyectosData = await fetch(`${API}/api/proyectos`).then(r => r.json());
-  renderProyectos();
-}
-
-function renderProyectos() {
   const data = filterByDate(window.proyectosData);
 
   // ── Botón de Reporte movido a index.html estático ────────────
@@ -469,13 +445,12 @@ function renderProyectos() {
       }
     }
 
-    const esc = (k) => escapeHtml(r[k] || '');
-    return `<tr class="clickable-row" onclick="viewRecord('proyectos', '${esc('ID Proyectos')}')">
-      <td><input type="checkbox" class="row-checkbox" value="${esc('ID Proyectos')}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"></td>
-      <td><strong>${esc('Nombre del Proyecto') || '—'}</strong></td>
-      <td>${escapeHtml(clientName)}</td>
-      <td>${esc('Servicio') || '—'}</td>
-      <td style="white-space:nowrap; font-weight:600; color:var(--text2);">${escapeHtml(nextMeeting)}</td>
+    return `<tr class="clickable-row" onclick="viewRecord('proyectos', '${r['ID Proyectos'] || ''}')">
+      <td><input type="checkbox" class="row-checkbox" value="${r['ID Proyectos'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-purple">${r['ID Proyectos'] || '—'}</span></td>
+      <td><strong>${r['Nombre del Proyecto'] || '—'}</strong></td>
+      <td>${clientName}</td>
+      <td>${r['Servicio'] || '—'}</td>
+      <td style="white-space:nowrap; font-weight:600; color:var(--text2);">${nextMeeting}</td>
       <td>
         <select class="pill-select ${estadoClase}" onclick="event.stopPropagation()" onchange="updateProyectoSelect('${r['ID Proyectos']}','estado','Estado del Proyecto',this.value); this.className='pill-select '+({'Activo':'pill-estado-activo','Reunión':'pill-estado-reunion','Cerrado':'pill-estado-cerrado'}[this.value]||'pill-estado-default')">
           <option value="Activo"  ${r['Estado del Proyecto'] === 'Activo'  ? 'selected' : ''}>Activo</option>
@@ -550,10 +525,6 @@ async function loadPipeline() {
     try { window.tareasData = await fetch(`${API}/api/tareas`).then(r => r.json()); } catch(e) {}
   }
   window.pipelineData = await fetch(`${API}/api/proyectos`).then(r => r.json());
-  renderPipeline();
-}
-
-function renderPipeline() {
   const data = filterByDate(window.pipelineData);
   const board = document.getElementById('kanban-pipeline');
   
@@ -572,7 +543,6 @@ function renderPipeline() {
     card.setAttribute('data-id', r['ID Proyectos']);
     
     card.addEventListener('dragstart', e => {
-      e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', JSON.stringify({ id: r['ID Proyectos'], type: 'proyectos' }));
       e.target.style.opacity = '0.5';
     });
@@ -599,7 +569,7 @@ function renderPipeline() {
           const badgeClass = t['Estado'] === 'En Proceso' ? 'badge-blue' : 'badge-orange';
           linkedTasksHtml += `
             <div style="font-size:11.5px; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
-              
+              <span class="badge ${badgeClass}" style="font-size:9.5px; padding:2px 5px;">${t['ID Tarea']}</span>
               <span style="color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${t['Tarea'] || ''}">${t['Tarea'] || '—'}</span>
             </div>
           `;
@@ -608,32 +578,24 @@ function renderPipeline() {
       }
     }
 
-    const esc = (k) => escapeHtml(r[k] || '');
     card.innerHTML = `
-      <div class="kanban-card-header">
-        <input type="checkbox" class="row-checkbox" value="${esc('ID Proyectos')}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)">
-        <span class="kanban-card-date">${esc('Próxima reunión') || 'Sin reunión'}</span>
+      <div class="kanban-card-header" onclick="viewRecord('proyectos', '${r['ID Proyectos']}')">
+        <input type="checkbox" class="row-checkbox" value="${r['ID Proyectos']}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)">
+        <span class="badge badge-purple">${r['ID Proyectos'] || '—'}</span>
+        <span class="kanban-card-date">${r['Próxima reunión'] || 'Sin reunión'}</span>
       </div>
-      <div class="kanban-card-title">${esc('Nombre del Proyecto') || '—'}</div>
-      <div class="kanban-card-body">
-        <p><strong>Cliente:</strong> ${escapeHtml(clientName)}</p>
-        <p><strong>Servicio:</strong> ${esc('Servicio') || '—'}</p>
-        <p title="${esc('Notas')}">${truncate(esc('Notas'), 30)}</p>
+      <div class="kanban-card-title" onclick="viewRecord('proyectos', '${r['ID Proyectos']}')">${r['Nombre del Proyecto'] || '—'}</div>
+      <div class="kanban-card-body" onclick="viewRecord('proyectos', '${r['ID Proyectos']}')">
+        <p><strong>Cliente:</strong> ${clientName}</p>
+        <p><strong>Servicio:</strong> ${r['Servicio'] || '—'}</p>
+        <p title="${r['Notas'] || ''}">${truncate(r['Notas'], 30)}</p>
         ${linkedTasksHtml}
       </div>
       <div class="kanban-card-footer">
-        <span class="kanban-card-resp">Avance: ${esc('% Avance') || '0%'}</span>
-        <button class="kanban-move-btn" onclick="event.stopPropagation(); showMoveMenu(this.closest('.kanban-card'), '${esc('ID Proyectos')}', 'proyectos')" title="Mover de etapa">
-          <i class="ph ph-arrows-left-right"></i>
-        </button>
-        ${pipelineStatusBadge(esc('Estado del Proyecto'))}
+        <span class="kanban-card-resp">Avance: ${r['% Avance'] || '0%'}</span>
+        ${pipelineStatusBadge(r['Estado del Proyecto'])}
       </div>
     `;
-    // Click on card body opens record details (but not on drag)
-    card.addEventListener('click', (ev) => {
-      if (ev.target.closest('.row-checkbox') || ev.target.closest('.kanban-move-btn')) return;
-      viewRecord('proyectos', r['ID Proyectos']);
-    });
     col.appendChild(card);
   });
 
@@ -641,89 +603,6 @@ function renderPipeline() {
     const count = col.querySelectorAll('.kanban-card').length;
     col.querySelector('.kanban-count').textContent = count;
   });
-}
-
-// ── PIPELINE PROSPECTOS ──────────────────────────────────────────
-async function loadPipelineProspectos() {
-  window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json());
-  
-  const board = document.getElementById('kanban-pipeline-prospectos');
-  
-  board.querySelectorAll('.kanban-cards').forEach(el => el.innerHTML = '');
-  board.querySelectorAll('.kanban-count').forEach(el => el.textContent = '0');
-
-  window.prospectosData.forEach(r => {
-    const etapa = r['Etapa'] || 'Nuevo'; 
-    const col = board.querySelector(`.kanban-col[data-status="${etapa}"] .kanban-cards`);
-    if (!col) return;
-    
-    const card = document.createElement('div');
-    card.className = 'kanban-card';
-    card.setAttribute('draggable', 'true');
-    card.setAttribute('data-id', r['ID Prospectos']);
-    
-    card.addEventListener('dragstart', e => {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', JSON.stringify({ id: r['ID Prospectos'], type: 'prospectos_pipeline' }));
-      e.target.style.opacity = '0.5';
-    });
-    card.addEventListener('dragend', e => {
-      e.target.style.opacity = '1';
-    });
-
-    const prospectName = r['Nombre del Contacto'] || r['Nombre'] || '—';
-
-    const esc = (k) => escapeHtml(r[k] || '');
-    card.innerHTML = `
-      <div class="kanban-card-header">
-        <span class="kanban-card-date">${esc('Fecha de Registro') || ''}</span>
-      </div>
-      <div class="kanban-card-title">${escapeHtml(prospectName)}</div>
-      <div class="kanban-card-body">
-        <p><strong>Asesor:</strong> ${esc('Asesor') || '—'}</p>
-        <p title="${esc('Notas')}">${truncate(esc('Notas'), 40)}</p>
-      </div>
-      <div class="kanban-card-footer">
-        <span class="kanban-card-resp">${esc('Medio de contacto') || ''}</span>
-        <button class="kanban-move-btn" onclick="event.stopPropagation(); showMoveMenu(this.closest('.kanban-card'), '${esc('ID Prospectos')}', 'prospectos_pipeline')" title="Mover de etapa">
-          <i class="ph ph-arrows-left-right"></i>
-        </button>
-      </div>
-    `;
-    card.addEventListener('click', (ev) => {
-      if (ev.target.closest('.kanban-move-btn')) return;
-      viewRecord('prospectos', r['ID Prospectos']);
-    });
-    col.appendChild(card);
-  });
-
-  board.querySelectorAll('.kanban-col').forEach(col => {
-    const count = col.querySelectorAll('.kanban-card').length;
-    col.querySelector('.kanban-count').textContent = count;
-  });
-}
-
-function switchPipeline(type) {
-  const btnProyectos = document.getElementById('tab-pipeline-proyectos');
-  const btnProspectos = document.getElementById('tab-pipeline-prospectos');
-  const containerProyectos = document.getElementById('pipeline-proyectos-container');
-  const containerProspectos = document.getElementById('pipeline-prospectos-container');
-  
-  if (type === 'proyectos') {
-    btnProyectos.classList.add('active');
-    btnProspectos.classList.remove('active');
-    
-    containerProyectos.style.display = 'block';
-    containerProspectos.style.display = 'none';
-    loadPipeline();
-  } else {
-    btnProspectos.classList.add('active');
-    btnProyectos.classList.remove('active');
-    
-    containerProspectos.style.display = 'block';
-    containerProyectos.style.display = 'none';
-    loadPipelineProspectos();
-  }
 }
 
 // ── TAREAS ───────────────────────────────────────────────────────
@@ -748,7 +627,6 @@ async function loadTareas() {
     card.setAttribute('data-id', r['ID Tarea']);
     
     card.addEventListener('dragstart', e => {
-      e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', JSON.stringify({ id: r['ID Tarea'], type: 'tareas' }));
       e.target.style.opacity = '0.5';
     });
@@ -756,31 +634,24 @@ async function loadTareas() {
       e.target.style.opacity = '1';
     });
 
-    const esc = (k) => escapeHtml(r[k] || '');
     card.innerHTML = `
-      <div class="kanban-card-header">
-        <input type="checkbox" class="row-checkbox" value="${esc('ID Tarea')}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)">
-        ${priorityBadge(esc('Prioridad'))}
+      <div class="kanban-card-header" onclick="viewRecord('tareas', '${r['ID Tarea']}')">
+        <input type="checkbox" class="row-checkbox" value="${r['ID Tarea']}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)">
+        <span class="badge badge-orange">${r['ID Tarea'] || '—'}</span>
+        ${priorityBadge(r['Prioridad'])}
       </div>
-      <div class="kanban-card-title">${esc('Tarea') || '—'}</div>
-      <div class="kanban-card-body">
-        <p><strong>Cat:</strong> ${esc('Categoría') || '—'}</p>
-        <p><strong>Proyecto:</strong> ${esc('ID Proyecto') || '—'}</p>
-        <p><strong>Límite:</strong> ${esc('Fecha límite') || '—'}</p>
-        ${r['Comentarios'] ? `<p title="${esc('Comentarios')}">${truncate(esc('Comentarios'), 40)}</p>` : ''}
+      <div class="kanban-card-title" onclick="viewRecord('tareas', '${r['ID Tarea']}')">${r['Tarea'] || '—'}</div>
+      <div class="kanban-card-body" onclick="viewRecord('tareas', '${r['ID Tarea']}')">
+        <p><strong>Cat:</strong> ${r['Categoría'] || '—'}</p>
+        <p><strong>Proyecto:</strong> ${r['ID Proyecto'] || '—'}</p>
+        <p><strong>Límite:</strong> ${r['Fecha límite'] || '—'}</p>
+        ${r['Comentarios'] ? `<p title="${r['Comentarios']}">${truncate(r['Comentarios'], 40)}</p>` : ''}
       </div>
       <div class="kanban-card-footer">
-        <span class="kanban-card-resp">${esc('Responsable') || '—'}</span>
-        <button class="kanban-move-btn" onclick="event.stopPropagation(); showMoveMenu(this.closest('.kanban-card'), '${esc('ID Tarea')}', 'tareas')" title="Mover estado">
-          <i class="ph ph-arrows-left-right"></i>
-        </button>
-        ${taskStatusBadge(escapeHtml(estado))}
+        <span class="kanban-card-resp">${r['Responsable'] || '—'}</span>
+        ${taskStatusBadge(estado)}
       </div>
     `;
-    card.addEventListener('click', (ev) => {
-      if (ev.target.closest('.row-checkbox') || ev.target.closest('.kanban-move-btn')) return;
-      viewRecord('tareas', r['ID Tarea']);
-    });
     col.appendChild(card);
   });
 
@@ -791,63 +662,24 @@ async function loadTareas() {
 }
 
 // ── CITAS ────────────────────────────────────────────────────────
-let calendarInstance = null;
 async function loadCitas() {
-  if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json());
-  window.citasData = await fetch(`${API}/api/citas`).then(r => r.json());
-  const data = filterByDate(window.citasData);
-  
-  const events = data.map(r => {
-    let dateStr = r['Fecha'] || r['Fecha de la Cita'];
-    if (dateStr && dateStr.includes('/')) {
-        const parts = dateStr.split('/');
-        if (parts.length === 3) {
-            dateStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-        }
-    }
-
-    let startStr = dateStr;
-    const horaRaw = r['Hora'] || r['Hora de la Cita'];
-    
-    if (horaRaw && dateStr) {
-        const timeParts = horaRaw.split(':');
-        const hh = timeParts[0].padStart(2, '0');
-        const mm = (timeParts[1] || '00').padStart(2, '0');
-        startStr = `${dateStr}T${hh}:${mm}`;
-    }
-
-    return {
-      id: r['ID Citas'],
-      title: escapeHtml(r['Nombre'] || r['Nombre/Tema'] || 'Cita'),
-      start: startStr,
-      extendedProps: {
-        tipo: escapeHtml(r['Tipo'] || r['Tipo de reunión']),
-        responsable: escapeHtml(r['Responsable']),
-        proyecto: escapeHtml(r['ID Proyecto']),
-        cliente: escapeHtml(r['ID Cliente']),
-        notas: escapeHtml(r['Notas'] || r['Resultado'])
-      }
-    };
-  });
-  const calendarEl = document.getElementById('calendar');
-  if (calendarEl) {
-    if (calendarInstance) calendarInstance.destroy();
-
-    calendarInstance = new FullCalendar.Calendar(calendarEl, {
-      initialView: 'dayGridMonth',
-      headerToolbar: {
-        left: 'prev,next today',
-        center: 'title',
-        right: 'dayGridMonth,timeGridWeek,timeGridDay'
-      },
-      events: events,
-      eventClick: function(info) {
-        viewRecord('citas', info.event.id);
-      }
-    });
-    
-    calendarInstance.render();
-  }
+  window.citasData = await fetch(`${API}/api/citas`).then(r => r.json()).catch(() => []);
+  const data = filterByDate(window.citasData).filter(r => r['ID Citas']);
+  const tbody = document.querySelector('#tableCitas tbody');
+  tbody.innerHTML = data.length ? data.map(r => {
+    const notas = r['Notas'] || '';
+    return `<tr class="clickable-row" onclick="viewRecord('citas', '${r['ID Citas'] || ''}')">
+      <td><input type="checkbox" class="row-checkbox" value="${r['ID Citas'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-blue">${r['ID Citas'] || '—'}</span></td>
+      <td><strong>${r['Nombre'] || '—'}</strong></td>
+      <td>${r['Fecha de la Cita'] || '—'}</td>
+      <td>${r['Hora de la Cita'] || '—'}</td>
+      <td>${r['Correo'] || '—'}</td>
+      <td>${r['Teléfono'] || '—'}</td>
+      <td><span class="badge badge-purple">${r['Tipo de reunión'] || '—'}</span></td>
+      <td>${r['Responsable'] || '—'}</td>
+      <td>${notas.startsWith('📅') ? '<span style="color:var(--blue);font-size:12px;">Calendly</span>' : (notas ? (notas.length > 40 ? notas.slice(0, 40) + '…' : notas) : '—')}</td>
+    </tr>`;
+  }).join('') : emptyState();
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────
@@ -862,6 +694,7 @@ async function loadDashboard() {
   try {
     window.clientesData = await fetch(`${API}/api/clientes`).then(r => r.json()).catch(() => []);
     window.proyectosData = await fetch(`${API}/api/proyectos`).then(r => r.json()).catch(() => []);
+    window.pipelineData = await fetch(`${API}/api/pipeline_de_proyecto`).then(r => r.json()).catch(() => []);
     window.citasData = await fetch(`${API}/api/citas`).then(r => r.json()).catch(() => []);
     window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json()).catch(() => []);
     window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => []);
@@ -870,6 +703,7 @@ async function loadDashboard() {
     
     const clientes = filterByDate(Array.isArray(window.clientesData) ? window.clientesData : []);
     const proyectos = filterByDate(Array.isArray(window.proyectosData) ? window.proyectosData : []);
+    const pipeline = filterByDate(Array.isArray(window.pipelineData) ? window.pipelineData : []);
     const citas = filterByDate(Array.isArray(window.citasData) ? window.citasData : []);
     const prospectos = filterByDate(Array.isArray(window.prospectosData) ? window.prospectosData : []);
     const tareas = filterByDate(Array.isArray(window.tareasData) ? window.tareasData : []);
@@ -963,19 +797,21 @@ async function loadDashboard() {
     let sumTiempo = 0;
     let countTiempo = 0;
     const pipelineEtapas = {};
-    proyectos.forEach(p => {
-      let rawE = p['Etapa actual'] || '1';
-      let e = rawE;
-      if (['1','2','3','4','5','6','7'].includes(String(rawE))) {
-        e = formatEtapa(rawE).replace(/<[^>]*>?/gm, ''); // Remove HTML
-        if (e.includes('→')) e = e.split('→')[1].trim(); // Clean text
-      }
+    pipeline.forEach(p => {
+      const e = p['Etapa'] || 'Desconocida';
       pipelineEtapas[e] = (pipelineEtapas[e] || 0) + 1;
       
-      const d = p['Días sin movimiento'];
+      const d = p['Duración'];
       if(d && !isNaN(parseInt(d))) {
           sumTiempo += parseInt(d);
           countTiempo++;
+      } else if (p['Fecha Inicio'] && p['Fecha Fin']) {
+        const d1 = new Date(p['Fecha Inicio']);
+        const d2 = new Date(p['Fecha Fin']);
+        if (!isNaN(d1) && !isNaN(d2)) {
+          sumTiempo += (d2 - d1) / (1000 * 60 * 60 * 24);
+          countTiempo++;
+        }
       }
     });
     if (document.getElementById('kpiTiempoEtapa')) document.getElementById('kpiTiempoEtapa').textContent = countTiempo > 0 ? Math.round(sumTiempo / countTiempo) : '0';
@@ -1039,6 +875,7 @@ function openModal(title, body) {
       case 'tareas': body = formTarea(); break;
       case 'citas': body = formCita(); break;
       case 'actividades': body = formActividad(); break;
+      case 'cotizaciones': body = formCotizacion(); break;
       default: body = '<p class="text-muted">No hay formulario disponible para esta sección.</p>';
     }
   }
@@ -1075,10 +912,9 @@ function formProspecto() {
           <option value="Recomendación">Recomendación</option>
           <option value="Llamada">Llamada</option>
           <option value="Evento">Evento</option>
+          <option value="Correo">Correo</option>
         </select>
       </div>
-      <div class="form-group"><label>Nombre del Negocio</label><input name="nombreNegocio"></div>
-      <div class="form-group"><label>Giro</label><input name="giro"></div>
       <div class="form-group full"><label>Notas</label><input name="notas"></div>
       <div class="form-group full-width"><label>Situación</label><textarea name="situacion"></textarea></div>
       <div class="form-group full-width"><label>Problema</label><textarea name="problema"></textarea></div>
@@ -1334,34 +1170,22 @@ async function submitForm(event, endpoint, id = null) {
   }
 }
 
-// ── TABLE FILTER (debounced) ──────────────────────────────────────
-const filterTable = (function() {
-  let timer;
-  return function(tableId, query) {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      const q = query.toLowerCase();
-      const rows = document.querySelectorAll(`#${tableId} tbody tr`);
-      rows.forEach(row => {
-        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-      });
-    }, 200);
-  };
-})();
+// ── TABLE FILTER ──────────────────────────────────────────────────
+function filterTable(tableId, query) {
+  const q = query.toLowerCase();
+  const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+  rows.forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
 
-const filterKanban = (function() {
-  let timer;
-  return function(boardId, query) {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      const q = query.toLowerCase();
-      const cards = document.querySelectorAll(`#${boardId} .kanban-card`);
-      cards.forEach(card => {
-        card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
-      });
-    }, 200);
-  };
-})();
+function filterKanban(boardId, query) {
+  const q = query.toLowerCase();
+  const cards = document.querySelectorAll(`#${boardId} .kanban-card`);
+  cards.forEach(card => {
+    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
 
 // ── HELPERS ───────────────────────────────────────────────────────
 function truncate(str, n) { return str && str.length > n ? str.substring(0, n) + '...' : (str || ''); }
@@ -1394,87 +1218,54 @@ function emptyState() {
 // ── TOAST ─────────────────────────────────────────────────────────
 function showToast(msg, isError = false) {
   const toast = document.getElementById('toast');
-  if (!toast) return;
-  // Use innerHTML so icons render correctly
-  toast.innerHTML = msg;
-  toast.style.borderColor = isError ? 'var(--red)' : 'var(--green)';
-  toast.style.color = isError ? 'var(--red)' : 'var(--green)';
+  toast.textContent = msg;
+  toast.style.borderColor = isError ? 'var(--accent-red)' : 'var(--accent-green)';
+  toast.style.color = isError ? 'var(--accent-red)' : 'var(--accent-green)';
   toast.classList.remove('hidden');
   setTimeout(() => toast.classList.add('hidden'), 3500);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────
-window.initLegacyApp = function() {
-  loadDashboard();
-  initKanbanDragDrop();
-};
+loadDashboard();
 
-function initKanbanDragDrop() {
+// ── KANBAN DRAG & DROP LOGIC ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
   const cols = document.querySelectorAll('.kanban-col');
   cols.forEach(col => {
-    // Prevent attaching multiple times if initKanbanDragDrop is called again
-    if (col.dataset.dragAttached) return;
-    col.dataset.dragAttached = 'true';
-
-    col.addEventListener('dragover', e => { 
-      e.preventDefault(); 
-      col.style.background = '#eef2ff'; 
-    });
-    
-    col.addEventListener('dragleave', e => { 
-      col.style.background = '#f4f5f7'; 
-    });
-    
+    col.addEventListener('dragover', e => { e.preventDefault(); col.style.background = '#eef2ff'; });
+    col.addEventListener('dragleave', e => { col.style.background = '#f4f5f7'; });
     col.addEventListener('drop', async e => {
       e.preventDefault();
       col.style.background = '#f4f5f7';
       const newStatus = col.getAttribute('data-status');
       if (!newStatus) return;
-      
       try {
-        const textData = e.dataTransfer.getData('text/plain');
-        if (!textData) { showToast('Error drag: No dataTransfer', true); return; }
-        
-        let data;
-        try {
-          data = JSON.parse(textData);
-        } catch (err) {
-          showToast('DataTransfer no es JSON válido', true);
-          return;
-        }
-
+        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
         const { id, type } = data;
         let record = null;
         let endpoint = '';
-        
         if (type === 'proyectos') {
-          record = window.pipelineData.find(r => String(r['ID Proyectos']).trim() === String(id).trim());
+          record = window.pipelineData.find(r => r['ID Proyectos'] === id);
           endpoint = 'proyectos';
         } else if (type === 'tareas') {
-          record = window.tareasData.find(r => String(r['ID Tarea']).trim() === String(id).trim());
+          record = window.tareasData.find(r => r['ID Tarea'] === id);
           endpoint = 'tareas';
-        } else if (type === 'prospectos_pipeline') {
-          record = window.prospectosData.find(r => String(r['ID Prospectos']).trim() === String(id).trim());
+        } else if (type === 'prospectos') {
+          record = window.prospectosData.find(r => r['ID Prospectos'] === id);
           endpoint = 'prospectos';
         }
         
+        // For proyectos, the column data-status represents 'Etapa actual'
         const isProyectos = type === 'proyectos';
-        const isProspectos = type === 'prospectos_pipeline';
-        
-        let currentStatus = '';
-        if (isProyectos) currentStatus = record['Etapa actual'];
-        else if (isProspectos) currentStatus = record['Etapa'];
-        else currentStatus = record['Estado'];
-        
-        if (!record || String(currentStatus).trim() === String(newStatus).trim()) return;
+        const currentStatus = isProyectos ? record['Etapa actual'] : (type === 'prospectos' ? record['Etapa'] : record['Estado']);
+        if (!record || currentStatus === newStatus) return;
         
         const payload = {};
         if (isProyectos) {
           payload.etapa = newStatus;
           record['Etapa actual'] = newStatus;
-          // Optimistic UI update without fetching stale data
-          renderPipeline();
-        } else if (isProspectos) {
+          loadPipeline();
+        } else if (type === 'prospectos') {
           payload.etapa = newStatus;
           record['Etapa'] = newStatus;
           loadPipelineProspectos();
@@ -1483,193 +1274,24 @@ function initKanbanDragDrop() {
           record['Estado'] = newStatus;
           loadTareas();
         }
-
         showToast(`Moviendo a ${newStatus}...`);
-        
         const res = await fetch(`${API}/api/${endpoint}/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        
-        if (!res.ok) { 
-          const errData = await res.json().catch(()=>({})); 
-          throw new Error(errData.message || errData.error || 'Error al guardar el estado'); 
-        }
-        
+        if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || e.error || 'Error al guardar el estado'); }
         // ── WEBHOOK DISPATCH (kanban drag) ───────────────────
         if (typeof dispatchWebhook === 'function') {
           dispatchWebhook(endpoint, 'update', id, { ...payload, id });
         }
         // ────────────────────────────────────────────────────
-        
         showToast('Guardado correctamente');
-        // Reload from server just like original code
-        if (isProyectos) await loadPipeline(); 
-        else if (isProspectos) await loadPipelineProspectos(); 
-        else await loadTareas();
-        
-      } catch (err) { 
-        showToast(err.message, true); 
-        // Revert UI on error
-        if (type === 'proyectos') await loadPipeline(); 
-        else if (type === 'prospectos_pipeline') await loadPipelineProspectos(); 
-        else await loadTareas();
-      }
+        if (isProyectos) await loadPipeline(); else await loadTareas();
+      } catch (err) { showToast(err.message, true); }
     });
   });
-}
-
-// Click-to-move logic
-async function handleKanbanMoveClick(id, type, newStatus) {
-  let record = null;
-  let endpoint = '';
-
-  if (type === 'proyectos') {
-    record = (window.pipelineData || []).find(r => String(r['ID Proyectos']).trim() === String(id).trim());
-    endpoint = 'proyectos';
-  } else if (type === 'tareas') {
-    record = (window.tareasData || []).find(r => String(r['ID Tarea']).trim() === String(id).trim());
-    endpoint = 'tareas';
-  } else if (type === 'prospectos_pipeline') {
-    record = (window.prospectosData || []).find(r => String(r['ID Prospectos']).trim() === String(id).trim());
-    endpoint = 'prospectos';
-  }
-
-  if (!record) return;
-
-  const isProyectos = type === 'proyectos';
-  const isProspectos = type === 'prospectos_pipeline';
-
-  let currentStatus = '';
-  if (isProyectos) currentStatus = String(record['Etapa actual'] || '1');
-  else if (isProspectos) currentStatus = String(record['Etapa'] || 'Nuevo');
-  else currentStatus = String(record['Estado'] || '');
-
-  if (String(currentStatus).trim() === String(newStatus).trim()) return;
-
-  const payload = {};
-  if (isProyectos) {
-    payload.etapa = newStatus;
-    record['Etapa actual'] = newStatus;
-    loadPipeline();
-  } else if (isProspectos) {
-    payload.etapa = newStatus;
-    record['Etapa'] = newStatus;
-    loadPipelineProspectos();
-  } else {
-    payload.estado = newStatus;
-    record['Estado'] = newStatus;
-    loadTareas();
-  }
-
-  showToast(`Moviendo a etapa ${newStatus}...`);
-
-  try {
-    const res = await fetch(`${API}/api/${endpoint}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || errBody.message || `Error HTTP ${res.status}`);
-    }
-
-    if (typeof dispatchWebhook === 'function') {
-      dispatchWebhook(endpoint, 'update', id, { ...payload, id });
-    }
-
-    showToast('✅ ¡Etapa actualizada!');
-    if (isProyectos) await loadPipeline();
-    else if (isProspectos) await loadPipelineProspectos();
-    else await loadTareas();
-  } catch (err) {
-    showToast(`❌ Error: ${err.message}`, true);
-    if (isProyectos) await loadPipeline();
-    else if (isProspectos) await loadPipelineProspectos();
-    else await loadTareas();
-  }
-}
-
-// Click-to-move menu popover
-function showMoveMenu(cardElement, id, type) {
-  document.querySelectorAll('.kanban-move-menu').forEach(m => m.remove());
-
-  let columns = [];
-  if (type === 'proyectos') {
-    columns = [
-      { value: '1', label: '1 → Activación' },
-      { value: '2', label: '2 → Diagnóstico' },
-      { value: '3', label: '3 → Calendario' },
-      { value: '4', label: '4 → Creación Cont.' },
-      { value: '5', label: '5 → Campaña' },
-      { value: '6', label: '6 → Reporte' },
-      { value: '7', label: '7 → Renovación' },
-    ];
-  } else if (type === 'prospectos_pipeline') {
-    columns = [
-      { value: 'Nuevo', label: 'Nuevo' },
-      { value: 'En proceso', label: 'En proceso' },
-      { value: 'En espera', label: 'En espera' },
-      { value: 'Ganando', label: 'Ganando' },
-      { value: 'Cancelado', label: 'Cancelado' },
-    ];
-  } else if (type === 'tareas') {
-    columns = [
-      { value: 'Pendiente', label: 'Pendiente' },
-      { value: 'En Proceso', label: 'En Proceso' },
-      { value: 'Terminado', label: 'Terminado' },
-    ];
-  }
-
-  const menu = document.createElement('div');
-  menu.className = 'kanban-move-menu';
-  menu.style.cssText = 'position:absolute;z-index:999;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.15);padding:8px 4px;min-width:180px;';
-  
-  const title = document.createElement('div');
-  title.textContent = 'Mover a etapa:';
-  title.style.cssText = 'font-size:11px;font-weight:700;color:#94a3b8;padding:4px 12px 8px;text-transform:uppercase;letter-spacing:0.5px;';
-  menu.appendChild(title);
-
-  columns.forEach(col => {
-    const btn = document.createElement('button');
-    btn.textContent = col.label;
-    btn.style.cssText = 'display:block;width:100%;text-align:left;padding:8px 12px;border:none;background:none;cursor:pointer;font-size:13px;color:#334155;border-radius:6px;transition:background 0.15s;';
-    btn.onmouseover = () => btn.style.background = '#f1f5f9';
-    btn.onmouseout = () => btn.style.background = 'none';
-    btn.onclick = async (ev) => {
-      ev.stopPropagation();
-      menu.remove();
-      handleKanbanMoveClick(id, type, col.value);
-    };
-    menu.appendChild(btn);
-  });
-
-  const rect = cardElement.getBoundingClientRect();
-  menu.style.position = 'fixed';
-  menu.style.left = rect.right + 'px';
-  menu.style.top = rect.top + 'px';
-  
-  document.body.appendChild(menu);
-  const menuRect = menu.getBoundingClientRect();
-  if (menuRect.right > window.innerWidth) {
-    menu.style.left = (rect.left - menuRect.width) + 'px';
-  }
-  if (menuRect.bottom > window.innerHeight) {
-    menu.style.top = (window.innerHeight - menuRect.height - 10) + 'px';
-  }
-
-  setTimeout(() => {
-    document.addEventListener('click', function closeMenu(ev) {
-      if (!menu.contains(ev.target)) {
-        menu.remove();
-        document.removeEventListener('click', closeMenu);
-      }
-    });
-  }, 10);
-}
+});
 
 // ── RECORD VIEW AND EDIT LOGIC ────────────────────────────────────
 function viewRecord(endpoint, id) {
@@ -1701,11 +1323,10 @@ function viewRecord(endpoint, id) {
   Object.keys(record).forEach(k => {
     if (k === '_rowIndex') return;
     
-    // Hide IDs completely from frontend
-    if (k.toLowerCase().startsWith('id ')) return;
-    
+    // Only show columns that are mapped in the frontend forms or are ID columns
+    const isIdCol = k.toLowerCase().startsWith('id ');
     const isMapped = allMappedColumns.includes(k.toLowerCase());
-    if (!isMapped) return;
+    if (!isIdCol && !isMapped) return;
     
     const val = record[k] || '—';
     const isMuted = val === '—' || val.trim() === '';
@@ -1718,7 +1339,7 @@ function viewRecord(endpoint, id) {
       isEditable = false;
     }
 
-    if (!isEditable) {
+    if (isIdCol || !isEditable) {
       html += `
         <div class="detail-item" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px;">
           <div class="detail-label" style="font-weight: 900; font-size: 13px; margin-bottom: 4px; color: #000000;">${k}</div>
@@ -1742,21 +1363,10 @@ function viewRecord(endpoint, id) {
       `;
     }
   });
-  let convertButtonHtml = '';
-  if (endpoint === 'prospectos') {
-    convertButtonHtml = `
-      <button class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border:none; display: flex; align-items: center; gap: 6px;" 
-              onclick="convertToCliente('${id}')">
-        <i class="ph ph-user-plus"></i> Convertir a Cliente
-      </button>
-    `;
-  }
-
   html += `
-    <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
-      ${convertButtonHtml}
+    <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
       <button class="btn btn-outline" style="border-color: #fecaca; color: #b91c1c; background: #fef2f2; display: flex; align-items: center; gap: 6px;" 
-              onclick="deleteRecord('${endpoint}', '${id}')">
+              onclick="if(confirm('¿Estás seguro de eliminar este registro?')) { deleteRecord('${endpoint}', '${id}'); closeModal(); }">
         <i class="ph ph-trash"></i> Eliminar Registro
       </button>
     </div>
@@ -1774,54 +1384,13 @@ function viewRecord(endpoint, id) {
   openModal(`Detalles: ${nameForTitle}`, html);
 }
 
-async function convertToCliente(prospectId) {
-  if (!confirm('¿Convertir este prospecto a cliente? Esto creará un nuevo cliente y eliminará el prospecto.')) return;
-  
-  const prospecto = window.prospectosData.find(p => p['ID Prospectos'] === prospectId);
-  if (!prospecto) {
-    showToast('Prospecto no encontrado', true);
-    return;
-  }
-  
-  const payload = {
-    nombre: prospecto['Nombre del Contacto'] || prospecto['Nombre'] || '',
-    empresa: prospecto['Nombre del Negocio'] || prospecto['nombreNegocio'] || '',
-    correo: prospecto['Correo Electrónico'] || prospecto['Correo'] || '',
-    telefono: prospecto['Teléfono'] || '',
-    estado: 'Activo',
-    giro: prospecto['Giro'] || '',
-    prioridad: 'Media',
-    notas: `Convertido desde prospecto. ${prospecto['Notas'] || ''}`
-  };
-  
-  showToast('Convirtiendo a cliente...');
-  try {
-    const res = await fetch(`${API}/api/clientes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    
-    if (res.ok) {
-      await fetch(`${API}/api/prospectos/${prospectId}`, { method: 'DELETE' });
-      showToast('¡Prospecto convertido a cliente!');
-      closeModal();
-      refreshData();
-    } else {
-      showToast('Error al crear el cliente', true);
-    }
-  } catch (err) {
-    showToast(err.message, true);
-  }
-}
-
 function makeEditable(el, endpoint, id, sheetKey, originalVal) {
   if (el.querySelector('input') || el.querySelector('select')) return; // Already editing
   
   if (originalVal === '—') originalVal = '';
   
   let input;
-  if (sheetKey === 'Estado' || sheetKey === 'Prioridad' || sheetKey === 'Estatus' || sheetKey === 'Riesgo' || sheetKey === 'Etapa actual' || sheetKey === 'Etapa') {
+  if (sheetKey === 'Estado' || sheetKey === 'Prioridad' || sheetKey === 'Estatus' || sheetKey === 'Riesgo') {
     input = document.createElement('select');
     let opts = [];
     if (sheetKey === 'Estado') {
@@ -1829,10 +1398,6 @@ function makeEditable(el, endpoint, id, sheetKey, originalVal) {
       else if (endpoint === 'pipeline_de_proyecto') opts = ['En Proceso', 'Completado', 'Bloqueado'];
       else if (endpoint === 'proyectos') opts = ['Activo', 'Reunión', 'Cerrado'];
       else opts = ['Activo', 'Pausado', 'Baja'];
-    }
-    if (sheetKey === 'Etapa actual' || sheetKey === 'Etapa') {
-      if (endpoint === 'proyectos') opts = ['1', '2', '3', '4', '5', '6', '7'];
-      else if (endpoint === 'prospectos') opts = ['Nuevo', 'Contactado', 'Reunión Agendada', 'Propuesta Enviada', 'Negociación', 'Ganado', 'Perdido'];
     }
     if (sheetKey === 'Prioridad') opts = ['Alta', 'Media', 'Baja'];
     if (sheetKey === 'Estatus') opts = ['Al día', 'Atrasado', 'Suspendido'];
@@ -1930,6 +1495,7 @@ function editRecord(endpoint, id) {
     case 'tareas': html = formTarea(); break;
     case 'citas': html = formCita(); break;
     case 'actividades': html = formActividad(); break;
+    case 'cotizaciones': html = formCotizacion(); break;
     default: showToast('Formulario no disponible', true); return;
   }
   
@@ -1984,22 +1550,19 @@ async function deleteRecord(endpoint, id) {
     const result = await res.json();
     
     if (result.success) {
-      showToast('Registro eliminado exitosamente');
+      showToast('Registro eliminado exitosamente', 'success');
       closeModal();
       
       // Reload the corresponding view
       if (endpoint === 'clientes') loadClientes();
-      else if (endpoint === 'prospectos') {
-        loadProspectos();
-        if (currentSection === 'pipeline_prospectos') loadPipelineProspectos();
-      }
-      else if (endpoint === 'proyectos') {
-        loadProyectos();
-        if (currentSection === 'pipeline_de_proyecto') loadPipeline();
-      }
+      else if (endpoint === 'prospectos') loadProspectos();
+      else if (endpoint === 'proyectos') loadProyectos();
+      else if (endpoint === 'pipeline_de_proyecto') loadPipeline();
       else if (endpoint === 'tareas') loadTareas();
       else if (endpoint === 'citas') loadCitas();
       else if (endpoint === 'actividades') loadActividades();
+      else if (endpoint === 'cotizaciones') loadCotizaciones();
+      else if (endpoint === 'archivos') loadArchivos();
     } else {
       throw new Error(result.error || 'Error al eliminar');
     }
@@ -2125,40 +1688,425 @@ async function submitActividad(e) {
     submitBtn.textContent = 'Guardar Actividad';
   }
 }
-// ── CALENDLY INTEGRATION ──────────────────────────────────────────
-window.addEventListener('message', async (e) => {
-  let data = e.data;
-  if (typeof data === 'string') {
-    try { data = JSON.parse(data); } catch(err) { return; }
+
+// ── COTIZACIONES ──────────────────────────────────────────────────
+window.cotizacionesData = [];
+async function loadCotizaciones() {
+  if (!window.prospectosData) window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => []);
+  window.cotizacionesData = await fetch(`${API}/api/cotizaciones`).then(r => r.json()).catch(() => []);
+  const data = filterByDate(window.cotizacionesData);
+  const tbody = document.querySelector('#tableCotizaciones tbody');
+  tbody.innerHTML = data.length ? data.map(r => `
+    <tr class="clickable-row" onclick="viewRecord('cotizaciones', '${r['ID Cotización'] || ''}')">
+      <td><input type="checkbox" class="row-checkbox" value="${r['ID Cotización'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-blue">${r['ID Cotización'] || '—'}</span></td>
+      <td><strong>${r['Cliente'] || '—'}</strong></td>
+      <td>${r['Fecha'] || '—'}</td>
+      <td>${r['Vencimiento'] || '—'}</td>
+      <td>${r['Email'] || '—'}</td>
+      <td>${r['Subtotal'] ? '$' + parseFloat(r['Subtotal']).toLocaleString() : '—'}</td>
+      <td><strong>${r['Total'] ? '$' + parseFloat(r['Total']).toLocaleString() : '—'}</strong></td>
+      <td><a href="#" onclick="event.stopPropagation(); downloadCotizacionPDF('${r['ID Cotización'] || ''}')"><i class="ph ph-file-pdf" style="color:#ef4444; font-size:18px;"></i></a></td>
+    </tr>`).join('') : emptyState();
+}
+
+function downloadCotizacionPDF(id) {
+  window.open(`${API}/api/cotizaciones/${id}/pdf`, '_blank');
+}
+
+let servicioCount = 0;
+function formCotizacion() {
+  const today = new Date().toISOString().split('T')[0];
+  const nextMonth = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+  servicioCount = 0;
+  return `<form onsubmit="submitCotizacion(event)">
+    <div class="form-grid">
+      <div class="form-group full"><label>Prospecto *</label>
+        <select name="cliente" required>
+          <option value="">Selecciona Prospecto...</option>
+          ${generateOptions('prospectosData', 'Nombre del Contacto', 'Nombre del Contacto')}
+        </select>
+      </div>
+      <div class="form-group"><label>Email</label><input name="email" type="email"></div>
+      <div class="form-group"><label>Teléfono</label><input name="telefono"></div>
+      <div class="form-group"><label>Fecha</label><input name="fecha" type="date" value="${today}"></div>
+      <div class="form-group"><label>Vence</label><input name="vencimiento" type="date" value="${nextMonth}"></div>
+    </div>
+    <div style="margin:16px 0;border-top:1px solid var(--border);padding-top:16px;">
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>IVA</label>
+        <select name="ivaRate" onchange="calcPreview()" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+          <option value="16">16%</option>
+          <option value="8">8%</option>
+          <option value="0">Sin IVA</option>
+        </select>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <label style="font-weight:600;font-size:14px;">Servicios</label>
+        <button type="button" class="btn btn-outline" style="padding:4px 12px;font-size:12px;" onclick="addServicioRow()">+ Agregar Servicio</button>
+      </div>
+      <table id="serviciosTable" style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:var(--surface);">
+          <th style="padding:8px;text-align:left;width:50%;">Descripción</th>
+          <th style="padding:8px;text-align:center;width:15%;">Cant.</th>
+          <th style="padding:8px;text-align:right;width:17%;">P. Unit.</th>
+          <th style="padding:8px;text-align:right;width:18%;">Total</th>
+        </tr></thead>
+        <tbody id="serviciosBody"></tbody>
+      </table>
+      <div style="text-align:right;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <span style="font-size:14px;color:var(--text2);">Subtotal: $<span id="previewSubtotal">0.00</span></span><br>
+        <span style="font-size:14px;color:var(--text2);">IVA (16%): $<span id="previewIVA">0.00</span></span><br>
+        <span style="font-size:18px;font-weight:700;color:var(--primary);">Total: $<span id="previewTotal">0.00</span></span>
+      </div>
+    </div>
+    <div class="form-group full"><label>Notas</label><textarea name="notas" rows="2"></textarea></div>
+    <button type="submit" class="btn btn-primary btn-block">Generar Cotización</button>
+  </form>`;
+}
+
+function addServicioRow() {
+  const tbody = document.getElementById('serviciosBody');
+  const i = servicioCount++;
+  const tr = document.createElement('tr');
+  tr.id = `servicio-row-${i}`;
+  tr.innerHTML = `
+    <td style="padding:4px;"><input name="servicio_desc_${i}" placeholder="Ej: Diseño web" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;"></td>
+    <td style="padding:4px;"><input name="servicio_cant_${i}" type="number" min="1" value="1" oninput="calcPreview()" style="width:60px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;text-align:center;"></td>
+    <td style="padding:4px;"><input name="servicio_precio_${i}" type="number" step="0.01" min="0" oninput="calcPreview()" style="width:90px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;text-align:right;"></td>
+    <td style="padding:4px;text-align:right;font-weight:600;" id="servicio_total_${i}">$0.00</td>
+  `;
+  tbody.appendChild(tr);
+  calcPreview();
+}
+
+function calcPreview() {
+  let subtotal = 0;
+  for (let i = 0; i < servicioCount; i++) {
+    const row = document.getElementById(`servicio-row-${i}`);
+    if (!row || row.style.display === 'none') continue;
+    const cant = parseFloat(row.querySelector(`[name="servicio_cant_${i}"]`).value) || 0;
+    const precio = parseFloat(row.querySelector(`[name="servicio_precio_${i}"]`).value) || 0;
+    const total = cant * precio;
+    subtotal += total;
+    document.getElementById(`servicio_total_${i}`).textContent = `$${total.toFixed(2)}`;
   }
-  
-  if (data && data.event && data.event.includes('calendly')) {
-    console.log('Calendly Event:', data.event, data.payload);
+  const ivaRate = parseFloat(document.querySelector('[name="ivaRate"]')?.value) || 0;
+  const iva = subtotal * (ivaRate / 100);
+  const granTotal = subtotal + iva;
+  document.getElementById('previewSubtotal').textContent = subtotal.toFixed(2);
+  document.getElementById('previewIVA').textContent = iva.toFixed(2);
+  document.getElementById('previewIVA').parentNode.firstChild.textContent = `IVA (${ivaRate}%): `;
+  document.getElementById('previewTotal').textContent = granTotal.toFixed(2);
+}
+
+async function submitCotizacion(event) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('button[type="submit"]');
+  btn.textContent = 'Generando...';
+  btn.disabled = true;
+
+  const servicios = [];
+  for (let i = 0; i < servicioCount; i++) {
+    const row = document.getElementById(`servicio-row-${i}`);
+    if (!row) continue;
+    const desc = (row.querySelector(`[name="servicio_desc_${i}"]`).value || '').trim();
+    const cant = parseInt(row.querySelector(`[name="servicio_cant_${i}"]`).value) || 0;
+    const precio = parseFloat(row.querySelector(`[name="servicio_precio_${i}"]`).value) || 0;
+    if (desc && cant > 0) {
+      servicios.push({ descripcion: desc, cantidad: cant, precio });
+    }
   }
 
-  if (data && data.event === 'calendly.event_scheduled') {
-    const eventUri = data.payload.event.uri;
-    const inviteeUri = data.payload.invitee.uri;
+  if (servicios.length === 0) {
+    showToast('Agrega al menos un servicio', true);
+    btn.textContent = 'Generar Cotización';
+    btn.disabled = false;
+    return;
+  }
+
+  const body = {
+    cliente: form.cliente.value,
+    email: form.email.value,
+    telefono: form.telefono.value,
+    fecha: form.fecha.value,
+    vencimiento: form.vencimiento.value,
+    notas: form.notas.value,
+    servicios: servicios,
+    ivaRate: form.ivaRate.value,
+  };
+
+  try {
+    const r = await fetch(`${API}/api/cotizaciones`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const result = await r.json();
+    if (result.success) {
+      showToast('Cotización generada. Descargando PDF...');
+      closeModal();
+      loadCotizaciones();
+      // Auto-download PDF
+      setTimeout(() => downloadCotizacionPDF(result.id), 500);
+    } else {
+      showToast('Error: ' + (result.error || 'Error al guardar'), true);
+    }
+  } catch (e) {
+    showToast('Error de conexión', true);
+  } finally {
+    btn.textContent = 'Generar Cotización';
+    btn.disabled = false;
+  }
+}
+
+// ── ARCHIVOS ──────────────────────────────────────────────────────
+window.archivosData = [];
+async function loadArchivos() {
+  // Check Drive status
+  try {
+    const ds = await fetch(`${API}/api/archivos/drive-status`).then(r => r.json());
+    const banner = document.getElementById('driveBanner');
+    if (!ds.connected && banner) {
+      banner.innerHTML = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;font-size:13px;">⚠️ Google Drive no está conectado. <a href="' + ds.authUrl + '" target="_blank" style="color:#3b82f6;font-weight:600;">Autorizar Drive</a> para poder subir archivos.</div>';
+    } else if (banner) {
+      banner.innerHTML = '';
+    }
+  } catch(e) {}
+
+  window.archivosData = await fetch(`${API}/api/archivos`).then(r => r.json()).catch(() => []);
+  const data = filterByDate(window.archivosData);
+  const tbody = document.querySelector('#tableArchivos tbody');
+  tbody.innerHTML = data.length ? data.map(r => `
+    <tr class="clickable-row" onclick="viewRecord('archivos', '${r['ID Archivo'] || ''}')">
+      <td><input type="checkbox" class="row-checkbox" value="${r['ID Archivo'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-orange">${r['ID Archivo'] || '—'}</span></td>
+      <td><strong>${r['Nombre del Archivo'] || r['Nombre'] || '—'}</strong></td>
+      <td><span class="badge badge-blue">${r['Tipo'] || '—'}</span></td>
+      <td>${r['Tamaño'] || '—'}</td>
+      <td>${r['Fecha Subida'] || r['Fecha'] || '—'}</td>
+      <td>${r['Proyecto'] || '—'}</td>
+      <td>${r['Cliente'] || '—'}</td>
+      <td>${r.webViewLink ? '<a href="' + r.webViewLink + '" target="_blank" onclick="event.stopPropagation()"><i class="ph ph-download-simple" style="color:#3b82f6; font-size:18px;"></i></a>' : '—'}</td>
+    </tr>`).join('') : emptyState();
+}
+
+async function uploadArchivo(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('proyecto', prompt('Proyecto relacionado (opcional):') || '');
+  formData.append('cliente', prompt('Cliente relacionado (opcional):') || '');
+  formData.append('notas', prompt('Notas (opcional):') || '');
+
+  try {
+    const res = await fetch(`${API}/api/archivos/upload`, { method: 'POST', body: formData });
+    const result = await res.json();
+    if (result.success) {
+      showToast('Archivo subido correctamente');
+      loadArchivos();
+    } else {
+      showToast('Error: ' + (result.error || 'Error al subir'), true);
+    }
+  } catch (e) {
+    showToast('Error de conexión al subir archivo', true);
+  }
+  event.target.value = '';
+}
+
+// ── PIPELINE PROSPECTOS ──────────────────────────────────────────
+async function loadPipelineProspectos() {
+  if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json()).catch(() => []);
+  window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => []);
+  const data = filterByDate(window.prospectosData);
+  const board = document.getElementById('kanban-pipeline-prospectos');
+  if (!board) return;
+
+  board.querySelectorAll('.kanban-cards').forEach(el => el.innerHTML = '');
+  board.querySelectorAll('.kanban-count').forEach(el => el.textContent = '0');
+
+  data.forEach(r => {
+    const etapa = r['Etapa'] || 'Nuevo';
+    const col = board.querySelector(`.kanban-col[data-status="${etapa}"] .kanban-cards`);
+    if (!col) return;
+
+    const card = document.createElement('div');
+    card.className = 'kanban-card';
+    card.setAttribute('draggable', 'true');
+    card.setAttribute('data-id', r['ID Prospectos']);
+
+    card.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', JSON.stringify({ id: r['ID Prospectos'], type: 'prospectos' }));
+      e.target.style.opacity = '0.5';
+    });
+    card.addEventListener('dragend', e => {
+      e.target.style.opacity = '1';
+    });
+
+    card.innerHTML = `
+      <div class="kanban-card-header">
+        <span class="badge badge-purple">${r['ID Prospectos'] || '—'}</span>
+        <span style="font-size:11px;color:var(--text2);">${r['Fecha de Registro'] || ''}</span>
+      </div>
+      <div class="kanban-card-title" onclick="viewRecord('prospectos', '${r['ID Prospectos'] || ''}')">${r['Nombre del Contacto'] || '—'}</div>
+      <div class="kanban-card-body" onclick="viewRecord('prospectos', '${r['ID Prospectos'] || ''}')">
+        <p><strong>Asesor:</strong> ${r['Asesor'] || '—'}</p>
+        <p><strong>Contacto:</strong> ${r['Correo Electrónico'] || ''} ${r['Teléfono'] || ''}</p>
+        <p title="${r['Notas'] || ''}">${truncate(r['Notas'], 40)}</p>
+      </div>
+      <div class="kanban-card-footer">
+        <span class="kanban-card-resp">${r['Medio de contacto'] || '—'}</span>
+        <span class="badge badge-blue">${etapa}</span>
+      </div>
+    `;
+    col.appendChild(card);
+  });
+
+  board.querySelectorAll('.kanban-col').forEach(col => {
+    const count = col.querySelectorAll('.kanban-card').length;
+    col.querySelector('.kanban-count').textContent = count;
+  });
+}
+
+// Patch btnAdd for archivos/citas to trigger custom actions
+(function() {
+  const origOnClick = document.getElementById('btnAdd').onclick;
+  document.getElementById('btnAdd').onclick = function(e) {
+    if (currentSection === 'archivos') {
+      document.getElementById('fileUploadInput').click();
+    } else if (currentSection === 'citas') {
+      openCalendlyModal();
+    } else {
+      origOnClick.call(this, e);
+    }
+  };
+})();
+
+// ── CALENDLY ───────────────────────────────────────────────────────
+function openCalendlyModal() {
+  const container = document.getElementById('calendlyContainer');
+  container.innerHTML = '<div class="calendly-inline-widget" data-url="https://calendly.com/demiansoberanes7/30min?primary_color=f4dd58" style="min-width:320px;height:700px;"></div>';
+  document.getElementById('calendlyModal').classList.remove('hidden');
+
+  // Re-init Calendly widget
+  if (window.Calendly) {
+    Calendly.initInlineWidget({
+      url: 'https://calendly.com/demiansoberanes7/30min?primary_color=f4dd58',
+      parentElement: container,
+    });
+  }
+}
+
+function closeCalendlyModal() {
+  document.getElementById('calendlyModal').classList.add('hidden');
+  document.getElementById('calendlyContainer').innerHTML = '';
+  loadCitas();
+}
+
+// Listen for Calendly booking events
+window.addEventListener('message', function(e) {
+  if (e.origin !== 'https://calendly.com') return;
+  if (e.data.event === 'calendly.event_scheduled') {
+    const payload = e.data.payload || {};
+    console.log('[Calendly] Payload:', payload);
+
+    const eventUri = payload.event_uri || (payload.event && payload.event.uri) || '';
     
-    try {
-      showToast('Sincronizando cita de Calendly...', false);
-      const res = await fetch(`${API}/api/sync-calendly`, {
+    if (eventUri) {
+      // Use backend to fetch real data via Calendly API
+      fetch(`${API}/api/citas/from-calendly`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventUri, inviteeUri })
+        body: JSON.stringify({ eventUri }),
+      })
+      .then(r => r.json())
+      .then(result => {
+        if (result.success) {
+          showToast(`✅ Cita agendada con ${result.nombre || 'invitado'}`);
+          closeCalendlyModal();
+        } else {
+          showToast('Error al guardar cita: ' + (result.error || ''), true);
+        }
+      })
+      .catch(err => {
+        console.error('[Calendly] Error:', err);
+        showToast('Error de conexión al guardar cita', true);
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al sincronizar cita');
-      showToast('Cita guardada en Google Sheets');
-      
-      // Fire the webhook for n8n just like the old modal form did
-      if (typeof dispatchWebhook === 'function') {
-         dispatchWebhook('citas', 'create', data.id, data.data);
+    } else {
+      // Fallback: parse from postMessage directly
+      const eventData = payload.event || payload.scheduled_event || {};
+      const invitee = payload.invitee || {};
+      const name = invitee.name || eventData.name || 'Cita Calendly';
+      const email = invitee.email || '';
+      const startTime = eventData.start_time || '';
+      let dateStr = '';
+      let timeStr = '';
+      if (startTime) {
+        const dt = new Date(startTime);
+        if (!isNaN(dt)) {
+          dateStr = dt.toISOString().split('T')[0];
+          const hh = String(dt.getHours()).padStart(2, '0');
+          const mm = String(dt.getMinutes()).padStart(2, '0');
+          timeStr = `${hh}:${mm}`;
+        }
       }
-      
-      loadCitas(); // Refresh data in background
-    } catch(err) {
-      showToast(err.message, true);
+      fetch(`${API}/api/citas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: name, correo: email,
+          fecha: dateStr, hora: timeStr,
+          notas: '📅 Agendado vía Calendly',
+          tipo: 'Cita Calendly', responsable: '',
+        }),
+      })
+      .then(r => r.json())
+      .then(result => {
+        if (result.success) {
+          showToast(`✅ Cita agendada con ${name}`);
+          closeCalendlyModal();
+        }
+      })
+      .catch(err => console.error('[Calendly] Error:', err));
     }
   }
 });
+
+// ── TABLEROS UNIFICADOS ───────────────────────────────────────────
+let currentTablero = 'pipeline';
+
+function loadTableros() {
+  const sel = document.getElementById('tableroSelector');
+  currentTablero = sel ? sel.value : 'pipeline';
+  loadTableroView(currentTablero);
+}
+
+function loadTableroView(name) {
+  document.querySelectorAll('.tablero-panel').forEach(p => p.classList.add('hidden'));
+  const panel = document.getElementById('tablero-' + name);
+  if (panel) panel.classList.remove('hidden');
+
+  const loaders = {
+    'pipeline': loadPipeline,
+    'pipeline-prospectos': loadPipelineProspectos,
+    'tareas': loadTareas,
+  };
+  loaders[name]?.();
+}
+
+function switchTablero(value) {
+  currentTablero = value;
+  document.getElementById('tableroSearch').value = '';
+  loadTableroView(value);
+}
+
+function filterTablero(query) {
+  const boardIds = {
+    'pipeline': 'kanban-pipeline',
+    'pipeline-prospectos': 'kanban-pipeline-prospectos',
+    'tareas': 'kanban-tareas',
+  };
+  const boardId = boardIds[currentTablero];
+  if (boardId) filterKanban(boardId, query);
+}

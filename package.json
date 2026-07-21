@@ -12,20 +12,13 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "compression": "^1.8.1",
     "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-fileupload": "^1.5.2",
     "express-rate-limit": "^8.5.2",
-    "google-auth-library": "^10.9.0",
     "googleapis": "^173.0.0",
     "helmet": "^8.2.0",
-    "jsonwebtoken": "^9.0.3",
-    "node-cache": "^5.1.2",
-    "nodemailer": "^9.0.3"
-  },
-  "devDependencies": {
-    "eslint": "^10.7.0",
-    "prettier": "^3.9.5"
+    "pdfkit": "^0.19.1",
+    "pngjs": "^7.0.0"
   }
 }
