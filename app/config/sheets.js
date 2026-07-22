@@ -33,10 +33,15 @@ async function getSheets() {
       throw new Error(`[AUTH] Error crítico parseando GOOGLE_CREDENTIALS: ${e.message}`);
     }
   } else {
-    if (!fs.existsSync(path.join(__dirname, '../../credentials.json'))) {
-      throw new Error('[AUTH] credentials.json NO ENCONTRADO');
+    const credPaths = [
+      path.join(__dirname, '../../credentials.json'),
+      path.join(__dirname, '../../credentials.new.json')
+    ];
+    const found = credPaths.find(p => fs.existsSync(p));
+    if (!found) {
+      throw new Error('[AUTH] credentials.json / credentials.new.json NO ENCONTRADO');
     }
-    authOptions.keyFile = path.join(__dirname, '../../credentials.json');
+    authOptions.keyFile = found;
   }
 
   const auth = new google.auth.GoogleAuth(authOptions);
