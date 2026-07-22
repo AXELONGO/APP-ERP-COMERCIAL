@@ -2120,8 +2120,6 @@ function filterTablero(query) {
 
 // ── PAGOS Y GASTOS ────────────────────────────────────────────────
 window.pagosGastosData = [];
-let pgChartInstance = null;
-
 async function loadPagosGastos() {
   if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json());
   window.pagosGastosData = await fetch(`${API}/api/pagos_gastos`).then(r => r.json());
@@ -2151,7 +2149,7 @@ async function loadPagosGastos() {
   const fechaInput = document.getElementById('pg-fecha');
   if (fechaInput) fechaInput.value = fechaInput.value || today;
 
-  setTimeout(renderPgChart, 100);
+  actualizarResumenPg();
 }
 
 function formPagosGastos(data = {}) {
@@ -2214,29 +2212,16 @@ function filterTableByTipo(tipo) {
   });
 }
 
-function renderPgChart() {
-  const canvas = document.getElementById('pgChart');
-  if (!canvas) return;
+function actualizarResumenPg() {
   const data = window.pagosGastosData || [];
   const pagos = data.filter(r => r['Tipo'] === 'Pago').reduce((s, r) => s + parseFloat(r['Monto'] || 0), 0);
   const gastos = data.filter(r => r['Tipo'] === 'Gasto').reduce((s, r) => s + parseFloat(r['Monto'] || 0), 0);
-  if (pgChartInstance) pgChartInstance.destroy();
-  pgChartInstance = new Chart(canvas, {
-    type: 'doughnut',
-    data: {
-      labels: ['Pagos', 'Gastos'],
-      datasets: [{
-        data: [pagos, gastos],
-        backgroundColor: ['#10b981', '#ef4444'],
-        borderWidth: 0
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom' } }
-    }
-  });
+  const balance = pagos - gastos;
+  const fmt = v => '$' + v.toLocaleString();
+  const el = id => document.getElementById(id);
+  if (el('pg-total-pagos')) el('pg-total-pagos').textContent = fmt(pagos);
+  if (el('pg-total-gastos')) el('pg-total-gastos').textContent = fmt(gastos);
+  if (el('pg-balance')) el('pg-balance').textContent = fmt(balance);
 }
 
 function descargarVoucher(record) {
