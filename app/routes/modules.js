@@ -129,7 +129,7 @@ function registerModules(app) {
     d.clienteProveedor !== undefined ? d.clienteProveedor : (e[6] || ''),
     d.responsable !== undefined ? d.responsable : (e[7] || ''),
     d.notas !== undefined ? d.notas : (e[8] || '')
-  ]);
+  ], 'pagos_gastos');
 }
 
 module.exports = { registerModules };

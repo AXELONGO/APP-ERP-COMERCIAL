@@ -2139,7 +2139,7 @@ async function loadPagosGastos() {
       <td>${r['Cliente / Proveedor'] || '—'}</td>
       <td>${r['Responsable'] || '—'}</td>
       <td title="${r['Notas'] || ''}">${truncate(r['Notas'], 30)}</td>
-      <td><button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); descargarVoucher({id:'${r['ID Pagos y Gastos'] || ''}',fecha:'${r['Fecha'] || ''}',tipo:'${(r['Tipo'] || '').replace(/'/g,"")}',concepto:'${(r['Concepto'] || '').replace(/'/g,"")}',monto:'${r['Monto'] || '0'}',metodo:'${(r['Método de Pago'] || '').replace(/'/g,"")}',clienteProveedor:'${(r['Cliente / Proveedor'] || '').replace(/'/g,"")}',responsable:'${(r['Responsable'] || '').replace(/'/g,"")}',notas:'${(r['Notas'] || '').replace(/'/g,"")}'})"><i class="ph ph-download"></i></button></td>
+      <td>—</td>
     </tr>`).join('') : emptyState();
 
   const respSelect = document.getElementById('pg-responsable');
