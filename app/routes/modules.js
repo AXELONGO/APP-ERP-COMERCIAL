@@ -121,14 +121,14 @@ function registerModules(app) {
 
   crudRoutes(app, 'Pagos y Gastos', 'A:I', (d, e = []) => [
     e[0] || '',
-    d.fecha !== undefined ? d.fecha : (e[1] || new Date().toISOString().split('T')[0]),
-    d.tipo !== undefined ? d.tipo : (e[2] || 'Pago'),
-    d.concepto !== undefined ? d.concepto : (e[3] || ''),
-    d.monto !== undefined ? String(d.monto) : (e[4] || ''),
-    d.metodo !== undefined ? d.metodo : (e[5] || ''),
-    d.clienteProveedor !== undefined ? d.clienteProveedor : (e[6] || ''),
-    d.responsable !== undefined ? d.responsable : (e[7] || ''),
-    d.notas !== undefined ? d.notas : (e[8] || '')
+    d.tipo !== undefined ? d.tipo : (e[1] || 'Gasto'),
+    d.fecha !== undefined ? d.fecha : (e[2] || new Date().toISOString().split('T')[0]),
+    d.descripcion !== undefined ? d.descripcion : (e[3] || ''),
+    d.categoria !== undefined ? d.categoria : (e[4] || ''),
+    d.monto !== undefined ? String(d.monto) : (e[5] || ''),
+    d.metodo !== undefined ? d.metodo : (e[6] || ''),
+    d.notas !== undefined ? d.notas : (e[7] || ''),
+    d.fechaRegistro !== undefined ? d.fechaRegistro : (e[8] || new Date().toISOString().split('T')[0])
   ], 'pagos_gastos');
 }
 

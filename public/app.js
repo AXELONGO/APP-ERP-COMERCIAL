@@ -92,6 +92,8 @@ const MAPPING = {
   riesgo: ['Riesgo'],
   tarea: ['Tarea'],
   categoria: ['Categoría'],
+  descripcion: ['Descripción', 'Descripcion'],
+  metodo: ['Método de Pago', 'Metodo de Pago'],
   idproyecto: ['ID Proyecto'],
   fechalimite: ['Fecha límite'],
   responsable: ['Responsable', 'Asesor Responsable'],
@@ -1509,7 +1511,7 @@ function editRecord(endpoint, id) {
   openModal(`Editar: ${id}`, html);
   
   setTimeout(() => {
-    const form = document.querySelector('#modal-content form');
+    const form = document.querySelector('#modalBody form');
     if (!form) return;
     
     // Change onsubmit to pass the ID for PUT
@@ -2121,33 +2123,22 @@ function filterTablero(query) {
 // ── PAGOS Y GASTOS ────────────────────────────────────────────────
 window.pagosGastosData = [];
 async function loadPagosGastos() {
-  if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json());
   window.pagosGastosData = await fetch(`${API}/api/pagos_gastos`).then(r => r.json());
   const data = window.pagosGastosData;
 
   const tbody = document.querySelector('#tablePagosGastos tbody');
   tbody.innerHTML = data.length ? data.map(r => `
-    <tr class="clickable-row" onclick="editRecord('pagos_gastos', '${r['ID Pagos y Gastos'] || ''}')">
-      <td><span class="badge badge-${(r['Tipo'] || 'Pago') === 'Gasto' ? 'red' : 'green'}">${r['ID Pagos y Gastos'] || '—'}</span></td>
-      <td>${r['Fecha'] || '—'}</td>
+    <tr class="clickable-row" onclick="editRecord('pagos_gastos', '${r['ID'] || ''}')">
+      <td><span class="badge badge-${(r['Tipo'] || 'Gasto') === 'Gasto' ? 'red' : 'green'}">${r['ID'] || '—'}</span></td>
       <td><span class="badge badge-${(r['Tipo'] || '') === 'Gasto' ? 'red' : 'blue'}">${r['Tipo'] || '—'}</span></td>
-      <td><strong>${r['Concepto'] || '—'}</strong></td>
+      <td>${r['Fecha'] || '—'}</td>
+      <td><strong>${r['Descripción'] || '—'}</strong></td>
+      <td>${r['Categoría'] || '—'}</td>
       <td><strong>$${parseFloat(r['Monto'] || 0).toLocaleString()}</strong></td>
       <td>${r['Método de Pago'] || '—'}</td>
-      <td>${r['Cliente / Proveedor'] || '—'}</td>
-      <td>${r['Responsable'] || '—'}</td>
       <td title="${r['Notas'] || ''}">${truncate(r['Notas'], 30)}</td>
-      <td>—</td>
+      <td>${r['Fecha de Registro'] || '—'}</td>
     </tr>`).join('') : emptyState();
-
-  const respSelect = document.getElementById('pg-responsable');
-  if (respSelect && respSelect.tagName === 'SELECT') {
-    respSelect.innerHTML = '<option value="">Selecciona...</option>' + generateOptions('asesoresData', 'Nombre del Asesor', 'Nombre del Asesor');
-  }
-
-  const today = new Date().toISOString().split('T')[0];
-  const fechaInput = document.getElementById('pg-fecha');
-  if (fechaInput) fechaInput.value = fechaInput.value || today;
 
   actualizarResumenPg();
 }
@@ -2164,13 +2155,17 @@ function formPagosGastos(data = {}) {
         <label>Tipo</label>
         <select name="tipo" required>
           <option value="">Seleccionar...</option>
-          <option ${data['Tipo'] === 'Pago' ? 'selected' : ''}>Pago</option>
+          <option ${data['Tipo'] === 'Ingreso' ? 'selected' : ''}>Ingreso</option>
           <option ${data['Tipo'] === 'Gasto' ? 'selected' : ''}>Gasto</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Concepto</label>
-        <input type="text" name="concepto" value="${data['Concepto'] || ''}" placeholder="Ej. Pago de diseño web" required>
+        <label>Descripción</label>
+        <input type="text" name="descripcion" value="${data['Descripción'] || ''}" placeholder="Ej. Pago de diseño web" required>
+      </div>
+      <div class="form-group">
+        <label>Categoría</label>
+        <input type="text" name="categoria" value="${data['Categoría'] || ''}" placeholder="Ej. Servicios" required>
       </div>
       <div class="form-group">
         <label>Monto ($)</label>
@@ -2181,17 +2176,6 @@ function formPagosGastos(data = {}) {
         <select name="metodo" required>
           <option value="">Seleccionar...</option>
           ${['Transferencia','Efectivo','Tarjeta Débito','Tarjeta Crédito','PayPal','Otro'].map(o => `<option ${data['Método de Pago'] === o ? 'selected' : ''}>${o}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Cliente / Proveedor</label>
-        <input type="text" name="clienteProveedor" value="${data['Cliente / Proveedor'] || ''}" placeholder="Nombre del cliente o proveedor" required>
-      </div>
-      <div class="form-group" style="grid-column:span 2;">
-        <label>Responsable</label>
-        <select name="responsable" required>
-          <option value="">Selecciona...</option>
-          ${window.generateOptions('asesoresData', 'Nombre del Asesor', 'Nombre del Asesor', data['Responsable'])}
         </select>
       </div>
       <div class="form-group" style="grid-column:span 2;">
@@ -2207,14 +2191,14 @@ function filterTableByTipo(tipo) {
   const rows = document.querySelectorAll('#tablePagosGastos tbody tr');
   rows.forEach(row => {
     if (!tipo) { row.style.display = ''; return; }
-    const tipoCell = row.cells[2]?.textContent || '';
+    const tipoCell = row.cells[1]?.textContent || '';
     row.style.display = tipoCell === tipo ? '' : 'none';
   });
 }
 
 function actualizarResumenPg() {
   const data = window.pagosGastosData || [];
-  const pagos = data.filter(r => r['Tipo'] === 'Pago').reduce((s, r) => s + parseFloat(r['Monto'] || 0), 0);
+  const pagos = data.filter(r => ['Pago', 'Ingreso'].includes(r['Tipo'])).reduce((s, r) => s + parseFloat(r['Monto'] || 0), 0);
   const gastos = data.filter(r => r['Tipo'] === 'Gasto').reduce((s, r) => s + parseFloat(r['Monto'] || 0), 0);
   const balance = pagos - gastos;
   const fmt = v => '$' + v.toLocaleString();
@@ -2227,14 +2211,14 @@ function actualizarResumenPg() {
 function descargarVoucher(record) {
   if (!record) { showToast('Selecciona un registro para descargar', true); return; }
   const r = {
-    id: record.id || record['ID Pagos y Gastos'] || '—',
+    id: record.id || record.ID || record['ID'] || '—',
     fecha: record.fecha || record['Fecha'] || '—',
     tipo: record.tipo || record['Tipo'] || '—',
-    concepto: record.concepto || record['Concepto'] || '—',
+    concepto: record.concepto || record.descripcion || record['Descripción'] || '—',
     monto: record.monto || record['Monto'] || 0,
     metodo: record.metodo || record['Método de Pago'] || '—',
-    clienteProveedor: record.clienteProveedor || record['Cliente / Proveedor'] || '—',
-    responsable: record.responsable || record['Responsable'] || '—',
+    clienteProveedor: record.categoria || record['Categoría'] || '—',
+    responsable: record.fechaRegistro || record['Fecha de Registro'] || '—',
     notas: record.notas || record['Notas'] || '—',
   };
   const { jsPDF } = window.jspdf;
@@ -2257,8 +2241,8 @@ function descargarVoucher(record) {
     `Concepto:       ${r.concepto}`,
     `Monto:          $${parseFloat(r.monto || 0).toLocaleString()}`,
     `Metodo:         ${r.metodo}`,
-    `Cliente/Prov:   ${r.clienteProveedor}`,
-    `Responsable:    ${r.responsable}`,
+    `Categoria:      ${r.clienteProveedor}`,
+    `Fecha Registro: ${r.responsable}`,
     `Notas:          ${r.notas}`,
   ];
   lines.forEach((l, i) => doc.text(l, 8, 30 + i * 5.5));
@@ -2288,25 +2272,25 @@ function descargarBalance() {
   const balance = totalPagos - totalGastos;
 
   doc.setFontSize(11);
-  doc.text(`Total Pagos:  $${totalPagos.toLocaleString()}`, 14, 32);
+  doc.text(`Total Ingresos: $${totalPagos.toLocaleString()}`, 14, 32);
   doc.text(`Total Gastos: $${totalGastos.toLocaleString()}`, 14, 39);
   doc.text(`Balance:      $${balance.toLocaleString()}`, 14, 46);
 
   const tableData = data.map(r => [
-    r['ID Pagos y Gastos'] || '',
-    r['Fecha'] || '',
     r['Tipo'] || '',
-    r['Concepto'] || '',
+    r['Fecha'] || '',
+    r['ID'] || '',
+    r['Descripción'] || '',
+    r['Categoría'] || '',
     `$${parseFloat(r['Monto'] || 0).toLocaleString()}`,
     r['Método de Pago'] || '',
-    r['Cliente / Proveedor'] || '',
-    r['Responsable'] || '',
-    truncate(r['Notas'], 25)
+    truncate(r['Notas'], 25),
+    r['Fecha de Registro'] || ''
   ]);
 
   doc.autoTable({
     startY: 52,
-    head: [['ID', 'Fecha', 'Tipo', 'Concepto', 'Monto', 'Método', 'Cliente/Prov', 'Responsable', 'Notas']],
+    head: [['Tipo', 'Fecha', 'ID', 'Descripción', 'Categoría', 'Monto', 'Método', 'Notas', 'Fecha Registro']],
     body: tableData,
     styles: { fontSize: 7 },
     headStyles: { fillColor: [59, 130, 246] }
