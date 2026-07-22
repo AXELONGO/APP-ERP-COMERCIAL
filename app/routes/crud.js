@@ -9,7 +9,8 @@ const PREFIX_MAP = {
   'Tareas': 'TAR-',
   'Citas': 'CIT-',
   'Asesores': 'ASE-',
-  'Actividades': 'ACT-'
+  'Actividades': 'ACT-',
+  'Pagos y Gastos': 'PG-'
 };
 
 function crudRoutes(app, sheetName, range, mapper, customEndpoint) {

@@ -236,6 +236,7 @@ function navigateTo(section) {
     actividades: ['Registrar Actividad', 'Agrega tu avance del día'],
     cotizaciones: ['Cotizaciones', 'Cotizaciones y presupuestos'],
     archivos: ['Archivos', 'Documentos y archivos del negocio'],
+    pagos_gastos: ['Pagos y Gastos', 'Control de ingresos y egresos'],
   };
   const [title, sub] = titles[section] || ['', ''];
   document.getElementById('pageTitle').textContent = title;
@@ -325,6 +326,7 @@ function loadSection(section) {
     actividades: loadActividades,
     cotizaciones: loadCotizaciones,
     archivos: loadArchivos,
+    pagos_gastos: loadPagosGastos,
   };
   loaders[section]?.();
 }
@@ -876,6 +878,7 @@ function openModal(title, body) {
       case 'citas': body = formCita(); break;
       case 'actividades': body = formActividad(); break;
       case 'cotizaciones': body = formCotizacion(); break;
+      case 'pagos_gastos': body = formPagosGastos(); break;
       default: body = '<p class="text-muted">No hay formulario disponible para esta sección.</p>';
     }
   }
@@ -1159,6 +1162,9 @@ async function submitForm(event, endpoint, id = null) {
       }
       // ─────────────────────────────────────────────────────────
       loadSection(currentSection);
+      if (endpoint === 'pagos_gastos' && !id) {
+        setTimeout(() => descargarVoucher(body), 500);
+      }
     } else {
       showToast('<i class="ph-fill ph-x-circle" style="color:#ef4444; vertical-align:middle; margin-right:4px;"></i> Error: ' + result.error, true);
     }
@@ -1496,6 +1502,7 @@ function editRecord(endpoint, id) {
     case 'citas': html = formCita(); break;
     case 'actividades': html = formActividad(); break;
     case 'cotizaciones': html = formCotizacion(); break;
+    case 'pagos_gastos': html = formPagosGastos(); break;
     default: showToast('Formulario no disponible', true); return;
   }
   
@@ -2110,3 +2117,229 @@ function filterTablero(query) {
   const boardId = boardIds[currentTablero];
   if (boardId) filterKanban(boardId, query);
 }
+
+// ── PAGOS Y GASTOS ────────────────────────────────────────────────
+window.pagosGastosData = [];
+let pgChartInstance = null;
+
+async function loadPagosGastos() {
+  if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json());
+  window.pagosGastosData = await fetch(`${API}/api/pagos_gastos`).then(r => r.json());
+  const data = window.pagosGastosData;
+
+  const tbody = document.querySelector('#tablePagosGastos tbody');
+  tbody.innerHTML = data.length ? data.map(r => `
+    <tr class="clickable-row" onclick="editRecord('pagos_gastos', '${r['ID Pagos y Gastos'] || ''}')">
+      <td><span class="badge badge-${(r['Tipo'] || 'Pago') === 'Gasto' ? 'red' : 'green'}">${r['ID Pagos y Gastos'] || '—'}</span></td>
+      <td>${r['Fecha'] || '—'}</td>
+      <td><span class="badge badge-${(r['Tipo'] || '') === 'Gasto' ? 'red' : 'blue'}">${r['Tipo'] || '—'}</span></td>
+      <td><strong>${r['Concepto'] || '—'}</strong></td>
+      <td><strong>$${parseFloat(r['Monto'] || 0).toLocaleString()}</strong></td>
+      <td>${r['Método de Pago'] || '—'}</td>
+      <td>${r['Cliente / Proveedor'] || '—'}</td>
+      <td>${r['Responsable'] || '—'}</td>
+      <td title="${r['Notas'] || ''}">${truncate(r['Notas'], 30)}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); descargarVoucher({id:'${r['ID Pagos y Gastos'] || ''}',fecha:'${r['Fecha'] || ''}',tipo:'${(r['Tipo'] || '').replace(/'/g,"")}',concepto:'${(r['Concepto'] || '').replace(/'/g,"")}',monto:'${r['Monto'] || '0'}',metodo:'${(r['Método de Pago'] || '').replace(/'/g,"")}',clienteProveedor:'${(r['Cliente / Proveedor'] || '').replace(/'/g,"")}',responsable:'${(r['Responsable'] || '').replace(/'/g,"")}',notas:'${(r['Notas'] || '').replace(/'/g,"")}'})"><i class="ph ph-download"></i></button></td>
+    </tr>`).join('') : emptyState();
+
+  const respSelect = document.getElementById('pg-responsable');
+  if (respSelect && respSelect.tagName === 'SELECT') {
+    respSelect.innerHTML = '<option value="">Selecciona...</option>' + generateOptions('asesoresData', 'Nombre del Asesor', 'Nombre del Asesor');
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const fechaInput = document.getElementById('pg-fecha');
+  if (fechaInput) fechaInput.value = fechaInput.value || today;
+
+  setTimeout(renderPgChart, 100);
+}
+
+function formPagosGastos(data = {}) {
+  const fechaVal = data['Fecha'] || new Date().toISOString().split('T')[0];
+  return `<form id="modalForm" onsubmit="submitForm(event, 'pagos_gastos')">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Fecha</label>
+        <input type="date" name="fecha" value="${fechaVal}" required>
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select name="tipo" required>
+          <option value="">Seleccionar...</option>
+          <option ${data['Tipo'] === 'Pago' ? 'selected' : ''}>Pago</option>
+          <option ${data['Tipo'] === 'Gasto' ? 'selected' : ''}>Gasto</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Concepto</label>
+        <input type="text" name="concepto" value="${data['Concepto'] || ''}" placeholder="Ej. Pago de diseño web" required>
+      </div>
+      <div class="form-group">
+        <label>Monto ($)</label>
+        <input type="number" name="monto" step="0.01" min="0" value="${data['Monto'] || ''}" placeholder="0.00" required>
+      </div>
+      <div class="form-group">
+        <label>Método de Pago</label>
+        <select name="metodo" required>
+          <option value="">Seleccionar...</option>
+          ${['Transferencia','Efectivo','Tarjeta Débito','Tarjeta Crédito','PayPal','Otro'].map(o => `<option ${data['Método de Pago'] === o ? 'selected' : ''}>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Cliente / Proveedor</label>
+        <input type="text" name="clienteProveedor" value="${data['Cliente / Proveedor'] || ''}" placeholder="Nombre del cliente o proveedor" required>
+      </div>
+      <div class="form-group" style="grid-column:span 2;">
+        <label>Responsable</label>
+        <select name="responsable" required>
+          <option value="">Selecciona...</option>
+          ${window.generateOptions('asesoresData', 'Nombre del Asesor', 'Nombre del Asesor', data['Responsable'])}
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:span 2;">
+        <label>Notas</label>
+        <input type="text" name="notas" value="${data['Notas'] || ''}" placeholder="Notas opcionales">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Guardar</button>
+  </form>`;
+}
+
+function filterTableByTipo(tipo) {
+  const rows = document.querySelectorAll('#tablePagosGastos tbody tr');
+  rows.forEach(row => {
+    if (!tipo) { row.style.display = ''; return; }
+    const tipoCell = row.cells[2]?.textContent || '';
+    row.style.display = tipoCell === tipo ? '' : 'none';
+  });
+}
+
+function renderPgChart() {
+  const canvas = document.getElementById('pgChart');
+  if (!canvas) return;
+  const data = window.pagosGastosData || [];
+  const pagos = data.filter(r => r['Tipo'] === 'Pago').reduce((s, r) => s + parseFloat(r['Monto'] || 0), 0);
+  const gastos = data.filter(r => r['Tipo'] === 'Gasto').reduce((s, r) => s + parseFloat(r['Monto'] || 0), 0);
+  if (pgChartInstance) pgChartInstance.destroy();
+  pgChartInstance = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: ['Pagos', 'Gastos'],
+      datasets: [{
+        data: [pagos, gastos],
+        backgroundColor: ['#10b981', '#ef4444'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+}
+
+function descargarVoucher(record) {
+  if (!record) { showToast('Selecciona un registro para descargar', true); return; }
+  const r = {
+    id: record.id || record['ID Pagos y Gastos'] || '—',
+    fecha: record.fecha || record['Fecha'] || '—',
+    tipo: record.tipo || record['Tipo'] || '—',
+    concepto: record.concepto || record['Concepto'] || '—',
+    monto: record.monto || record['Monto'] || 0,
+    metodo: record.metodo || record['Método de Pago'] || '—',
+    clienteProveedor: record.clienteProveedor || record['Cliente / Proveedor'] || '—',
+    responsable: record.responsable || record['Responsable'] || '—',
+    notas: record.notas || record['Notas'] || '—',
+  };
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: [80, 120] });
+  const pageWidth = 80;
+
+  doc.setFontSize(14);
+  doc.text('VOUCHER', pageWidth / 2, 12, { align: 'center' });
+  doc.setFontSize(8);
+  doc.text('Pago / Gasto', pageWidth / 2, 18, { align: 'center' });
+
+  doc.setDrawColor(200);
+  doc.line(6, 21, 74, 21);
+
+  doc.setFontSize(8);
+  const lines = [
+    `Folio:          ${r.id}`,
+    `Fecha:          ${r.fecha}`,
+    `Tipo:           ${r.tipo}`,
+    `Concepto:       ${r.concepto}`,
+    `Monto:          $${parseFloat(r.monto || 0).toLocaleString()}`,
+    `Metodo:         ${r.metodo}`,
+    `Cliente/Prov:   ${r.clienteProveedor}`,
+    `Responsable:    ${r.responsable}`,
+    `Notas:          ${r.notas}`,
+  ];
+  lines.forEach((l, i) => doc.text(l, 8, 30 + i * 5.5));
+
+  doc.line(6, 88, 74, 88);
+  doc.setFontSize(6);
+  doc.text('Sistema ERP LumarK Group', pageWidth / 2, 93, { align: 'center' });
+
+  doc.save(`voucher_${(r.concepto || 'voucher').replace(/\s+/g, '_')}.pdf`);
+}
+
+function descargarBalance() {
+  const data = window.pagosGastosData || [];
+  if (!data.length) { showToast('No hay datos para generar balance', true); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFontSize(16);
+  doc.text('Balance de Pagos y Gastos', pageWidth / 2, 15, { align: 'center' });
+  doc.setFontSize(10);
+  doc.text(`Generado el ${new Date().toLocaleDateString()}`, pageWidth / 2, 22, { align: 'center' });
+
+  const totalPagos = data.filter(r => r['Tipo'] === 'Pago').reduce((s, r) => s + parseFloat(r['Monto'] || 0), 0);
+  const totalGastos = data.filter(r => r['Tipo'] === 'Gasto').reduce((s, r) => s + parseFloat(r['Monto'] || 0), 0);
+  const balance = totalPagos - totalGastos;
+
+  doc.setFontSize(11);
+  doc.text(`Total Pagos:  $${totalPagos.toLocaleString()}`, 14, 32);
+  doc.text(`Total Gastos: $${totalGastos.toLocaleString()}`, 14, 39);
+  doc.text(`Balance:      $${balance.toLocaleString()}`, 14, 46);
+
+  const tableData = data.map(r => [
+    r['ID Pagos y Gastos'] || '',
+    r['Fecha'] || '',
+    r['Tipo'] || '',
+    r['Concepto'] || '',
+    `$${parseFloat(r['Monto'] || 0).toLocaleString()}`,
+    r['Método de Pago'] || '',
+    r['Cliente / Proveedor'] || '',
+    r['Responsable'] || '',
+    truncate(r['Notas'], 25)
+  ]);
+
+  doc.autoTable({
+    startY: 52,
+    head: [['ID', 'Fecha', 'Tipo', 'Concepto', 'Monto', 'Método', 'Cliente/Prov', 'Responsable', 'Notas']],
+    body: tableData,
+    styles: { fontSize: 7 },
+    headStyles: { fillColor: [59, 130, 246] }
+  });
+
+  doc.save(`balance_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+
+// Patch generateOptions to support preselected value
+const _origGenerateOptions = window.generateOptions || function(dataStore, idKey, nameKey) {
+  const data = window[dataStore] || [];
+  return data.map(d => `<option value="${d[idKey]}">${d[nameKey]}</option>`).join('');
+};
+window.generateOptions = function(dataStore, idKey, nameKey, selectedVal) {
+  const data = window[dataStore] || [];
+  if (selectedVal === undefined) {
+    return _origGenerateOptions(dataStore, idKey, nameKey);
+  }
+  return data.map(d => `<option value="${d[idKey]}" ${d[idKey] === selectedVal ? 'selected' : ''}>${d[nameKey]}</option>`).join('');
+};

@@ -15,6 +15,8 @@
   <script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
   <!-- Phosphor Icons -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
   <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
@@ -85,6 +87,11 @@
         </a>
         <a href="#" class="nav-item" data-section="archivos" id="nav-archivos">
           <span class="nav-icon"><i class="ph ph-folder"></i></span><span>Archivos</span>
+        </a>
+
+        <div class="nav-section-label">FINANZAS</div>
+        <a href="#" class="nav-item" data-section="pagos_gastos" id="nav-pagos_gastos">
+          <span class="nav-icon"><i class="ph ph-currency-circle-dollar"></i></span><span>Pagos y Gastos</span>
         </a>
       </nav>
 
@@ -488,6 +495,100 @@
     </div>
     <!-- Hidden file input for upload -->
     <input type="file" id="fileUploadInput" style="display:none" onchange="uploadArchivo(event)">
+  </section>
+
+  <!-- ── PAGOS Y GASTOS ────────────────────────────────────── -->
+  <section class="section hidden" id="section-pagos_gastos">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" class="search-input" placeholder="Buscar..." oninput="filterTable('tablePagosGastos', this.value)">
+        <select onchange="filterTableByTipo(this.value)" style="padding:6px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+          <option value="">Todos</option>
+          <option>Pago</option>
+          <option>Gasto</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="document.getElementById('formPagosGastos').classList.toggle('hidden'); if(!document.getElementById('formPagosGastos').classList.contains('hidden')) document.getElementById('pg-fecha').focus();">
+        <i class="ph ph-plus"></i> Nuevo Registro
+      </button>
+    </div>
+
+    <form id="formPagosGastos" class="form-card standalone hidden" style="margin-bottom:16px;" onsubmit="submitForm(event, 'pagos_gastos')">
+      <h3 class="form-title">Nuevo Pago / Gasto</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Fecha</label>
+          <input type="date" id="pg-fecha" required>
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="pg-tipo" required>
+            <option value="">Seleccionar...</option>
+            <option>Pago</option>
+            <option>Gasto</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Concepto</label>
+          <input type="text" id="pg-concepto" placeholder="Ej. Pago de diseño web" required>
+        </div>
+        <div class="form-group">
+          <label>Monto ($)</label>
+          <input type="number" id="pg-monto" step="0.01" min="0" placeholder="0.00" required>
+        </div>
+        <div class="form-group">
+          <label>Método de Pago</label>
+          <select id="pg-metodo" required>
+            <option value="">Seleccionar...</option>
+            <option>Transferencia</option>
+            <option>Efectivo</option>
+            <option>Tarjeta Débito</option>
+            <option>Tarjeta Crédito</option>
+            <option>PayPal</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Cliente / Proveedor</label>
+          <input type="text" id="pg-clienteProveedor" placeholder="Nombre del cliente o proveedor" required>
+        </div>
+        <div class="form-group" style="grid-column:span 2;">
+          <label>Responsable</label>
+          <select id="pg-responsable" required>
+            <option value="">Selecciona...</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:span 2;">
+          <label>Notas</label>
+          <input type="text" id="pg-notas" placeholder="Notas opcionales">
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button type="submit" class="btn btn-primary btn-block">Guardar</button>
+        <button type="button" class="btn btn-secondary" onclick="this.closest('form').classList.add('hidden')">Cancelar</button>
+      </div>
+    </form>
+
+    <div class="table-card" style="margin-bottom:16px;">
+      <div style="padding:16px;">
+        <h3 style="font-weight:600; margin-bottom:12px;">Resumen</h3>
+        <canvas id="pgChart" height="180"></canvas>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #e5e7eb;">
+        <h3 style="font-weight:600;">Registros</h3>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-secondary" onclick="descargarVoucher()"><i class="ph ph-receipt"></i> Voucher</button>
+          <button class="btn btn-secondary" onclick="descargarBalance()"><i class="ph ph-file-pdf"></i> Balance</button>
+        </div>
+      </div>
+      <table id="tablePagosGastos">
+        <thead><tr><th>ID</th><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Método</th><th>Cliente/Proveedor</th><th>Responsable</th><th>Notas</th><th>Acción</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </section>
 
 </main>
