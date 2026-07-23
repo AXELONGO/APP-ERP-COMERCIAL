@@ -1500,6 +1500,28 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── RECORD VIEW AND EDIT LOGIC ────────────────────────────────────
+const DETAIL_FIELD_DEFINITIONS = [
+  { label: 'Nombre de la tarea', keys: ['Tarea'] },
+  { label: 'Nombre del proyecto', keys: ['Nombre del Proyecto'] },
+  { label: 'Nombre del prospecto', keys: ['Nombre del Contacto'] },
+  { label: 'Nombre del cliente', keys: ['Nombre del Cliente'] },
+  { label: 'Descripción', keys: ['Descripción', 'Concepto', 'Nombre/Tema'] },
+  { label: 'Notas', keys: ['Notas', 'Notas sobre el Cliente', 'Comentarios', 'Evidencia'] },
+  { label: 'Prioridad', keys: ['Prioridad'] },
+  { label: 'Servicio ofrecido', keys: ['Servicio', 'Servicios contratados', 'Tipo de Servicio'] }
+];
+
+function escapeDetailHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+}
+
+function getDetailFields(record) {
+  return DETAIL_FIELD_DEFINITIONS.map(definition => {
+    const key = definition.keys.find(candidate => Object.prototype.hasOwnProperty.call(record, candidate));
+    return key ? { ...definition, key, value: record[key] || '' } : null;
+  }).filter(Boolean);
+}
+
 function viewRecord(endpoint, id) {
   if (isDeleteMode) {
     const cb = document.querySelector(`.row-checkbox[value="${id}"]`);
@@ -1523,74 +1545,44 @@ function viewRecord(endpoint, id) {
     return;
   }
 
-  const allMappedColumns = Object.values(MAPPING).flat().map(c => c.toLowerCase());
-  
-  let html = `<div class="record-details-grid">`;
-  Object.keys(record).forEach(k => {
-    if (k === '_rowIndex') return;
-    
-    // Only show columns that are mapped in the frontend forms or are ID columns
-    const isIdCol = k.toLowerCase().startsWith('id ');
-    const isMapped = allMappedColumns.includes(k.toLowerCase());
-    if (!isIdCol && !isMapped) return;
-    
-    const val = record[k] || '—';
-    const isMuted = val === '—' || val.trim() === '';
-    
-    let displayVal = val;
-    if (k === 'Etapa actual') displayVal = formatEtapa(val);
-    
-    let isEditable = true;
-    if (endpoint === 'tareas' && k !== 'Estado' && k !== 'Comentarios') {
-      isEditable = false;
-    }
-
-    if (isIdCol || !isEditable) {
-      html += `
-        <div class="detail-item" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px;">
-          <div class="detail-label" style="font-weight: 900; font-size: 13px; margin-bottom: 4px; color: #000000;">${k}</div>
-          <div class="detail-value ${isMuted ? 'text-muted' : ''}" style="padding: 4px; color: #1e293b; font-weight: 500;">
-            ${displayVal}
-          </div>
-        </div>
-      `;
-    } else {
-      html += `
-        <div class="detail-item" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px;">
-          <div class="detail-label" style="font-weight: 900; font-size: 13px; margin-bottom: 4px; color: #000000;">${k}</div>
-          <div class="detail-value ${isMuted ? 'text-muted' : ''} editable-field" 
-               style="cursor: pointer; padding: 4px; border-radius: 4px; transition: background 0.2s;"
-               onmouseover="this.style.background='#f0f4f8'" 
-               onmouseout="this.style.background='transparent'"
-               onclick="makeEditable(this, '${endpoint}', '${id}', '${k}', \`${val.replace(/"/g, '&quot;')}\`)">
-            ${displayVal} <i class="ph ph-pencil-simple" style="font-size: 0.8em; opacity: 0.5; margin-left: 5px;"></i>
-          </div>
-        </div>
-      `;
-    }
-  });
-  html += `
-    <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
-      <button class="btn btn-outline" style="border-color: #fecaca; color: #b91c1c; background: #fef2f2; display: flex; align-items: center; gap: 6px;" 
-              onclick="if(confirm('¿Estás seguro de eliminar este registro?')) { deleteRecord('${endpoint}', '${id}'); closeModal(); }">
-        <i class="ph ph-trash"></i> Eliminar Registro
+  const fields = getDetailFields(record);
+  const titleField = fields[0];
+  const nameForTitle = titleField?.value || id;
+  const fieldHtml = fields.map((field, index) => {
+    const value = String(field.value || '').trim();
+    const encoded = [endpoint, id, field.key, value].map(encodeURIComponent);
+    const isNotes = field.label === 'Notas';
+    return `<article class="detail-field ${isNotes ? 'detail-field-notes' : ''} ${index === 0 ? 'detail-field-primary' : ''}">
+      <div class="detail-field-label">${field.label}</div>
+      <div class="detail-field-value ${value ? '' : 'detail-field-empty'}" onclick="makeEditable(this, ...decodeURIComponent('${encoded.join('|')}').split('|'))">
+        ${escapeDetailHtml(value || 'Sin información')}
+        <i class="ph ph-pencil-simple detail-field-edit"></i>
+      </div>
+    </article>`;
+  }).join('');
+  const safeEndpoint = encodeURIComponent(endpoint);
+  const safeId = encodeURIComponent(id);
+  const html = `<div class="record-detail-view">
+    <div class="record-detail-hero">
+      <div class="record-detail-icon"><i class="ph ph-sparkle"></i></div>
+      <div><span class="record-detail-kicker">Ficha resumida</span><h2>${escapeDetailHtml(nameForTitle)}</h2></div>
+    </div>
+    <div class="record-details-grid">${fieldHtml || '<p class="detail-field-empty">No hay información relevante para mostrar.</p>'}</div>
+    <div class="record-detail-actions">
+      <button class="btn btn-outline detail-delete-button" onclick="if(confirm('¿Estás seguro de eliminar este registro?')) { deleteRecord(decodeURIComponent('${safeEndpoint}'), decodeURIComponent('${safeId}')); closeModal(); }">
+        <i class="ph ph-trash"></i> Eliminar registro
       </button>
     </div>
   </div>`;
-  
-  // Find a suitable name for the title using the known 'nombre' mappings
-  let nameForTitle = id; // fallback
-  if (MAPPING.nombre) {
-    const matchingKey = Object.keys(record).find(k => MAPPING.nombre.map(m => m.toLowerCase()).includes(k.toLowerCase()));
-    if (matchingKey && record[matchingKey]) {
-      nameForTitle = record[matchingKey];
-    }
-  }
-  
+
   openModal(`Detalles: ${nameForTitle}`, html);
 }
 
 function makeEditable(el, endpoint, id, sheetKey, originalVal) {
+  endpoint = decodeURIComponent(endpoint);
+  id = decodeURIComponent(id);
+  sheetKey = decodeURIComponent(sheetKey);
+  originalVal = decodeURIComponent(originalVal);
   if (el.querySelector('input') || el.querySelector('select')) return; // Already editing
   
   if (originalVal === '—') originalVal = '';

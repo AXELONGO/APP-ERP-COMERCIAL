@@ -1305,3 +1305,144 @@ tbody tr:hover {
 .detail-value.text-muted {
   color: #94a3b8;
 }
+
+/* Compact detail cards: show only the fields that drive the work. */
+.record-detail-view {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.record-detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0 24px;
+  border-bottom: 1px solid #e8edf5;
+}
+
+.record-detail-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, .2);
+  font-size: 22px;
+}
+
+.record-detail-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.record-detail-hero h2 {
+  color: #172033;
+  font-size: clamp(20px, 3vw, 29px);
+  line-height: 1.15;
+}
+
+.record-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 22px;
+}
+
+.detail-field {
+  min-height: 116px;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid #e4eaf3;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fff, #f8faff);
+  box-shadow: 0 7px 20px rgba(29, 45, 80, .06);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.detail-field:hover {
+  border-color: #bfd0f3;
+  box-shadow: 0 10px 24px rgba(29, 45, 80, .1);
+  transform: translateY(-2px);
+}
+
+.detail-field-primary {
+  border-color: #c7d8ff;
+  background: linear-gradient(135deg, #eef4ff, #fbfaff);
+}
+
+.detail-field-notes {
+  grid-column: 1 / -1;
+  min-height: 132px;
+}
+
+.detail-field-label {
+  margin-bottom: 12px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.detail-field-value {
+  min-height: 32px;
+  color: #172033;
+  cursor: pointer;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.detail-field-notes .detail-field-value {
+  color: #475569;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.detail-field-empty {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.detail-field-edit {
+  margin-left: 7px;
+  color: #94a3b8;
+  font-size: 15px;
+  opacity: .7;
+}
+
+.record-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 22px;
+}
+
+.detail-delete-button {
+  border-color: #fecaca;
+  color: #b91c1c;
+  background: #fff7f7;
+}
+
+@media (max-width: 640px) {
+  .record-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-field-notes {
+    grid-column: auto;
+  }
+
+  .record-detail-hero h2 {
+    font-size: 20px;
+  }
+}
