@@ -4,11 +4,19 @@
 // Endpoints: CITAS, TAREAS, PROYECTOS, PROSPECTOS
 // ═══════════════════════════════════════════════════════════════════
 
+const INFORMATION_WEBHOOK_URL = 'https://chatbot-n8n.or7bqd.easypanel.host/webhook/information';
 const WEBHOOK_ENDPOINTS = {
-  citas: 'https://demian405-n8n-free.hf.space/webhook/5649c541-fd91-4f8b-ba90-5da4cd767b96',
-  tareas: 'https://demian405-n8n-free.hf.space/webhook/TAREAS',
-  proyectos: 'https://demian405-n8n-free.hf.space/webhook/PROYECTOS',
-  prospectos: 'https://demian405-n8n-free.hf.space/webhook/PROSPECTOS',
+  sistema: INFORMATION_WEBHOOK_URL,
+  clientes: INFORMATION_WEBHOOK_URL,
+  prospectos: INFORMATION_WEBHOOK_URL,
+  proyectos: INFORMATION_WEBHOOK_URL,
+  tareas: INFORMATION_WEBHOOK_URL,
+  citas: INFORMATION_WEBHOOK_URL,
+  actividades: INFORMATION_WEBHOOK_URL,
+  asesores: INFORMATION_WEBHOOK_URL,
+  cotizaciones: INFORMATION_WEBHOOK_URL,
+  archivos: INFORMATION_WEBHOOK_URL,
+  pagos_gastos: INFORMATION_WEBHOOK_URL,
 };
 
 // Mapeo de endpoint interno → nombre del módulo semántico
@@ -19,6 +27,13 @@ const MODULE_NAMES = {
   pipeline: 'proyectos',
   pipeline_de_proyecto: 'proyectos',
   prospectos: 'prospectos',
+  clientes: 'clientes',
+  actividades: 'actividades',
+  asesores: 'asesores',
+  cotizaciones: 'cotizaciones',
+  archivos: 'archivos',
+  pagos_gastos: 'pagos_gastos',
+  sistema: 'sistema',
 };
 
 // Convención de nombres de eventos
@@ -133,6 +148,30 @@ function dispatchWebhook(endpointOrModule, triggerSource, recordId, recordData, 
   // Fire & forget — no bloquea la UI
   sendWebhook(module, payload);
 }
+
+function reportClientError(eventType, details) {
+  const payload = buildPayload('sistema', 'error', null, details);
+  payload.event_type = eventType;
+  sendWebhook('sistema', payload);
+}
+
+window.addEventListener('error', event => {
+  reportClientError('system.browser_error', {
+    message: event.message,
+    source: event.filename,
+    line: event.lineno,
+    column: event.colno,
+    stack: event.error?.stack || null
+  });
+});
+
+window.addEventListener('unhandledrejection', event => {
+  const reason = event.reason;
+  reportClientError('system.unhandled_rejection', {
+    message: reason?.message || String(reason),
+    stack: reason?.stack || null
+  });
+});
 
 // ── BOTÓN CAMPAÑA — PROSPECTOS ────────────────────────────────────
 /**

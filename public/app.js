@@ -519,14 +519,6 @@ async function updateProyectoSelect(id, payloadKey, memKey, val) {
     const record = window.proyectosData.find(r => Object.values(r).includes(id));
     if (record) record[memKey] = val;
 
-    // ── WEBHOOK DISPATCH (cambio inline en proyectos) ────────────────
-    if (typeof dispatchWebhook === 'function') {
-      // Build enriched data with the updated field + full project context
-      const updatedRecord = record ? { ...record, [memKey]: val } : { id, [memKey]: val };
-      dispatchWebhook('proyectos', 'update', id, updatedRecord);
-    }
-    // ────────────────────────────────────────────────────────────────
-    
     loadProyectos(); // re-render table
   } catch(err) {
     showToast(err.message, true);
@@ -1370,13 +1362,6 @@ async function submitForm(event, endpoint, id = null) {
       }
       closeModal();
       showToast(`<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Registro guardado en Google Sheets.${conversionWarning}`);
-      // ── WEBHOOK DISPATCH ─────────────────────────────────────
-      const triggerSrc = id ? 'update' : 'create';
-      const recordId   = id || result.id || result.newId || null;
-      if (typeof dispatchWebhook === 'function') {
-        dispatchWebhook(endpoint, triggerSrc, recordId, body);
-      }
-      // ─────────────────────────────────────────────────────────
       if (endpoint === 'tareas') window.tareasData = null;
       loadSection(currentSection);
       if (endpoint === 'clientes' && body.prospectoId) loadProspectos();
@@ -1505,11 +1490,6 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify(payload)
         });
         if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || e.error || 'Error al guardar el estado'); }
-        // ── WEBHOOK DISPATCH (kanban drag) ───────────────────
-        if (typeof dispatchWebhook === 'function') {
-          dispatchWebhook(endpoint, 'update', id, { ...payload, id });
-        }
-        // ────────────────────────────────────────────────────
         showToast('Guardado correctamente');
         if (isProyectos) await loadPipeline(); else await loadTareas();
       } catch (err) { showToast(err.message, true); }
@@ -1681,11 +1661,6 @@ function makeEditable(el, endpoint, id, sheetKey, originalVal) {
       });
       if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || e.error || 'Error al actualizar'); }
       showToast('Actualizado correctamente');
-      // ── WEBHOOK DISPATCH (inline edit) ───────────────────
-      if (typeof dispatchWebhook === 'function') {
-        dispatchWebhook(endpoint, 'update', id, { [sheetKey]: newVal, id });
-      }
-      // ────────────────────────────────────────────────────
       refreshData();
       
       // Update memory immediately to keep modal open with new data

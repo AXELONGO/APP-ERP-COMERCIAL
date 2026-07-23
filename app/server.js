@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 const { globalErrorHandler, notFoundHandler } = require('./middleware/errorHandler');
-const { reportBug } = require('./utils/bugReporter');
+const { reportBug, reportModification } = require('./utils/bugReporter');
 const fileUpload = require('express-fileupload');
 const { registerModules } = require('./routes/modules');
 const { registerDashboard } = require('./routes/dashboard');
@@ -61,6 +61,25 @@ app.use(fileUpload({
   abortOnLimit: true,
   responseOnLimit: 'El archivo excede el límite de 50MB',
 }));
+
+app.use((req, res, next) => {
+  const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+  const excluded = req.path === '/api/webhook-proxy' || req.path.startsWith('/api/auth/');
+  if (isMutation && !excluded) {
+    res.on('finish', () => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        reportModification({
+          method: req.method,
+          path: req.path,
+          status: res.statusCode,
+          body: req.body,
+          response: res.locals.webhookResponse || null
+        });
+      }
+    });
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, '../public')));
 
 registerModules(app);
