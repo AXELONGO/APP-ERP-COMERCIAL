@@ -2141,13 +2141,15 @@ function loadTableros() {
   loadTableroView(currentTablero);
 }
 
-async function openTareaModal() {
+function openTareaModal() {
+  openModal('Nueva Tarea', formTarea());
+
   const catalogs = [
     ['proyectos', 'proyectosData'],
     ['clientes', 'clientesData'],
     ['asesores', 'asesoresData']
   ];
-  const results = await Promise.all(catalogs.map(async ([endpoint, key]) => {
+  Promise.all(catalogs.map(async ([endpoint, key]) => {
     if (Array.isArray(window[key]) && window[key].length) return true;
     try {
       const response = await fetch(`${API}/api/${endpoint}`);
@@ -2159,12 +2161,12 @@ async function openTareaModal() {
       window[key] = Array.isArray(window[key]) ? window[key] : [];
       return false;
     }
-  }));
-
-  openModal('Nueva Tarea', formTarea());
-  if (results.some(result => !result)) {
-    showToast('El formulario abrió, pero algún catálogo no pudo cargar', true);
-  }
+  })).then(results => {
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay?.classList.contains('hidden')) return;
+    document.getElementById('modalBody').innerHTML = formTarea();
+    if (results.some(result => !result)) showToast('Algún catálogo no pudo cargar', true);
+  });
 }
 
 function loadTableroView(name) {
