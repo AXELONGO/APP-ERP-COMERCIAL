@@ -78,7 +78,7 @@
 
     <div class="nav-section-label">MÉTRICAS</div>
         <a href="#" class="nav-item" data-section="actividades" id="nav-actividades">
-          <span class="nav-icon"><i class="ph ph-lightning"></i></span><span>Registrar Actividad</span>
+          <span class="nav-icon"><i class="ph ph-lightning"></i></span><span>Indicadores diarios</span>
         </a>
 
         <div class="nav-section-label">DOCUMENTOS</div>
@@ -423,7 +423,7 @@
   <!-- ── REGISTRO ACTIVIDADES ───────────────────────────────── -->
   <section class="section hidden" id="section-actividades">
     <div class="form-card standalone">
-      <h3 class="form-title">Registrar Actividad del Día</h3>
+      <h3 class="form-title">Registrar indicador diario</h3>
       <form id="formActividad" onsubmit="submitActividad(event)">
         <div class="form-grid">
           <div class="form-group">
@@ -458,7 +458,7 @@
             <input type="text" id="act-notas" placeholder="Link o descripción" required>
           </div>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Guardar Actividad</button>
+        <button type="submit" class="btn btn-primary btn-block">Guardar indicador</button>
       </form>
     </div>
 
@@ -516,8 +516,8 @@
           <option>Gasto</option>
         </select>
       </div>
-      <button class="btn btn-primary" onclick="openModal('Nuevo Registro', formPagosGastos())">
-        <i class="ph ph-plus"></i> Nuevo Registro
+      <button class="btn btn-primary" onclick="openModal('Registrar pago o gasto', formPagosGastos())">
+        <i class="ph ph-plus"></i> Registrar pago o gasto
       </button>
     </div>
 

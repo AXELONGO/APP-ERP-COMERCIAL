@@ -227,7 +227,17 @@ function navigateTo(section) {
   document.getElementById(`nav-${section}`)?.classList.add('active');
   
   const hasOwnCreateControl = section === 'actividades' || section === 'pagos_gastos';
-  document.getElementById('btnAdd').style.display = (section === 'dashboard' || section === 'tableros' || hasOwnCreateControl) ? 'none' : 'inline-block';
+  const addLabels = {
+    prospectos: '+ Nuevo prospecto',
+    clientes: '+ Convertir prospecto',
+    proyectos: '+ Nuevo proyecto',
+    citas: 'Agendar cita',
+    cotizaciones: '+ Nueva cotización',
+    archivos: 'Subir archivo'
+  };
+  const btnAdd = document.getElementById('btnAdd');
+  btnAdd.innerHTML = addLabels[section] || '+ Nuevo registro';
+  btnAdd.style.display = (section === 'dashboard' || section === 'tableros' || hasOwnCreateControl) ? 'none' : 'inline-block';
   document.getElementById('btnDeleteMode').style.display = section === 'dashboard' ? 'none' : 'inline-block';
   if (isDeleteMode) toggleDeleteMode();
 
@@ -238,7 +248,7 @@ function navigateTo(section) {
     proyectos: ['Proyectos', 'Control de proyectos activos'],
     tableros: ['Tableros', 'Pipeline y tareas'],
     citas: ['Citas', 'Agenda de reuniones'],
-    actividades: ['Registrar Actividad', 'Agrega tu avance del día'],
+    actividades: ['Indicadores diarios', 'Registra llamadas, contenido y avances del día'],
     cotizaciones: ['Cotizaciones', 'Cotizaciones y presupuestos'],
     archivos: ['Archivos', 'Documentos y archivos del negocio'],
     pagos_gastos: ['Pagos y Gastos', 'Control de ingresos y egresos'],
@@ -1764,7 +1774,7 @@ async function submitActividad(e) {
     showToast('<i class="ph-fill ph-x-circle" style="color:#ef4444; vertical-align:middle; margin-right:4px;"></i> Ocurrió un error al guardar');
   } finally {
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Guardar Actividad';
+    submitBtn.textContent = 'Guardar indicador';
   }
 }
 
