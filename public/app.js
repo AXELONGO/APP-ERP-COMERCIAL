@@ -534,6 +534,155 @@ async function updateProyectoSelect(id, payloadKey, memKey, val) {
   }
 }
 
+async function openReporteModal() {
+  if (!window.proyectosData || !window.proyectosData.length) {
+    window.proyectosData = await fetch(`${API}/api/proyectos`).then(r => r.json()).catch(() => []);
+  }
+  const selectedProject = selectedIds.size === 1 ? [...selectedIds][0] : '';
+  const options = (window.proyectosData || []).map(p => `<option value="${p['ID Proyectos'] || ''}" ${p['ID Proyectos'] === selectedProject ? 'selected' : ''}>${p['ID Proyectos'] || ''} - ${p['Nombre del Proyecto'] || 'Sin nombre'}</option>`).join('');
+  openModal('Reporte integral de proyecto', `<form onsubmit="generateProjectReport(event)">
+    <div class="form-group">
+      <label>Selecciona el proyecto</label>
+      <select name="projectId" required>
+        <option value="">Seleccionar...</option>${options}
+      </select>
+    </div>
+    <p class="text-muted" style="margin:12px 0;">El reporte consultará registros relacionados de tareas, etapas, citas, actividades, archivos, cotizaciones, cliente y pagos/gastos.</p>
+    <button type="submit" class="btn btn-primary btn-block">Consultar estado del proyecto</button>
+  </form>`);
+}
+
+async function fetchReportData(endpoint) {
+  try {
+    const response = await fetch(`${API}/api/${endpoint}`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function reportText(record) {
+  return Object.values(record || {}).filter(Boolean).join(' ').toLowerCase();
+}
+
+function relatedProjectRecords(records, project, client) {
+  const projectId = String(project['ID Proyectos'] || '').toLowerCase();
+  const projectName = String(project['Nombre del Proyecto'] || '').toLowerCase();
+  const clientId = String(project['Cliente Relacionado'] || '').toLowerCase();
+  const clientName = String(client?.['Nombre del Cliente'] || client?.['Nombre'] || '').toLowerCase();
+  const tokens = [projectId, projectName, clientId, clientName].filter(value => value.length >= 3);
+  return records.filter(record => {
+    const direct = ['ID Proyecto', 'ID Proyectos', 'Proyecto', 'Proyecto ID', 'ID Proyecto Relacionado']
+      .some(key => [projectId, projectName].includes(String(record[key] || '').toLowerCase()));
+    const text = reportText(record);
+    return direct || tokens.some(token => text.includes(token));
+  });
+}
+
+async function generateProjectReport(event) {
+  event.preventDefault();
+  const projectId = new FormData(event.target).get('projectId');
+  if (!projectId) return;
+
+  const endpoints = ['proyectos', 'clientes', 'tareas', 'pipeline_de_proyecto', 'citas', 'actividades', 'archivos', 'cotizaciones', 'pagos_gastos'];
+  const [projects, clients, tasks, pipeline, meetings, activities, files, quotes, finance] = await Promise.all(endpoints.map(fetchReportData));
+  const project = projects.find(item => item['ID Proyectos'] === projectId) || (window.proyectosData || []).find(item => item['ID Proyectos'] === projectId);
+  if (!project) {
+    showToast('No se encontró el proyecto seleccionado', true);
+    return;
+  }
+
+  const client = clients.find(item => item['ID Clientes'] === project['Cliente Relacionado']);
+  const report = {
+    project,
+    client,
+    tasks: relatedProjectRecords(tasks, project, client),
+    pipeline: relatedProjectRecords(pipeline, project, client),
+    meetings: relatedProjectRecords(meetings, project, client),
+    activities: relatedProjectRecords(activities, project, client),
+    files: relatedProjectRecords(files, project, client),
+    quotes: relatedProjectRecords(quotes, project, client),
+    finance: relatedProjectRecords(finance, project, client)
+  };
+  renderProjectReport(report);
+}
+
+function reportMoney(value) {
+  const amount = Number(String(value || 0).replace(/[^0-9.-]/g, '')) || 0;
+  return '$' + amount.toLocaleString();
+}
+
+function reportRows(records, fields) {
+  return records.slice(0, 25).map(record => fields.map(field => record[field] || '—'));
+}
+
+function renderProjectReport(report) {
+  const p = report.project;
+  const clientName = report.client?.['Nombre del Cliente'] || p['Cliente Relacionado'] || 'Sin cliente';
+  const expenses = report.finance.filter(r => r['Tipo'] === 'Gasto').reduce((sum, r) => sum + (Number(r['Monto']) || 0), 0);
+  const income = report.finance.filter(r => ['Ingreso', 'Pago'].includes(r['Tipo'])).reduce((sum, r) => sum + (Number(r['Monto']) || 0), 0);
+  const openTasks = report.tasks.filter(r => !['Terminado', 'Completado', 'Cerrado'].includes(r['Estado'])).length;
+  const blockers = report.tasks.filter(r => ['Bloqueado', 'Detenido', 'Vencida'].includes(r['Estado']));
+  const risk = p['Riesgo'] || 'No definido';
+
+  const table = (title, headers, rows) => `<div style="margin-top:18px;"><h3 style="margin-bottom:8px;">${title} <span class="badge badge-gray">${rows.length}</span></h3>${rows.length ? `<div style="overflow:auto;"><table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(value => `<td>${value}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="text-muted">Sin registros relacionados.</p>'}</div>`;
+
+  const body = `<div id="projectReportContent">
+    <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+      <div><h2>${p['Nombre del Proyecto'] || 'Proyecto'}</h2><p class="text-muted">${p['ID Proyectos'] || '—'} · Cliente: ${clientName}</p></div>
+      <button class="btn btn-primary" onclick="downloadProjectReportPDF(window.currentProjectReport)"><i class="ph ph-file-pdf"></i> Descargar PDF</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:16px;">
+      <div class="kpi-card"><div class="kpi-value">${p['Estado del Proyecto'] || '—'}</div><div class="kpi-label">Estado</div></div>
+      <div class="kpi-card"><div class="kpi-value">${p['Etapa actual'] || '—'}</div><div class="kpi-label">Etapa</div></div>
+      <div class="kpi-card"><div class="kpi-value">${openTasks}</div><div class="kpi-label">Tareas abiertas</div></div>
+      <div class="kpi-card"><div class="kpi-value">${reportMoney(income)}</div><div class="kpi-label">Ingresos relacionados</div></div>
+      <div class="kpi-card"><div class="kpi-value">${reportMoney(expenses)}</div><div class="kpi-label">Gastos relacionados</div></div>
+    </div>
+    <div style="margin-top:18px;"><strong>Riesgo:</strong> ${risk} · <strong>Prioridad:</strong> ${p['Prioridad'] || 'No definida'}<br><strong>Notas:</strong> ${p['Notas'] || 'Sin notas'}</div>
+    ${blockers.length ? `<div style="margin-top:14px;background:#fef2f2;padding:12px;border-radius:8px;color:#991b1b;"><strong>Bloqueos detectados:</strong> ${blockers.map(r => r['Tarea'] || r['Estado']).join(', ')}</div>` : ''}
+    ${table('Tareas', ['ID', 'Tarea', 'Estado', 'Responsable', 'Fecha límite'], reportRows(report.tasks, ['ID Tarea', 'Tarea', 'Estado', 'Responsable', 'Fecha límite']))}
+    ${table('Etapas y pipeline', ['Proyecto', 'Etapa', 'Estado', 'Responsable', 'Comentarios'], reportRows(report.pipeline, ['ID Proyecto', 'Etapa', 'Estado', 'Responsable', 'Comentarios']))}
+    ${table('Citas y reuniones', ['Fecha', 'Hora', 'Tipo', 'Responsable', 'Resultado'], reportRows(report.meetings, ['Fecha', 'Hora', 'Tipo', 'Responsable', 'Resultado']))}
+    ${table('Actividades e indicadores', ['Fecha', 'Indicador', 'Cantidad', 'Responsable', 'Notas'], reportRows(report.activities, ['Fecha', 'Indicador', 'Cantidad', 'Responsable', 'Notas']))}
+    ${table('Archivos y entregables', ['Nombre', 'Tipo', 'Proyecto', 'Cliente', 'Fecha'], reportRows(report.files, ['Nombre del Archivo', 'Tipo', 'Proyecto', 'Cliente', 'Fecha Subida']))}
+    ${table('Cotizaciones', ['ID', 'Cliente', 'Fecha', 'Estado', 'Total'], reportRows(report.quotes, ['ID Cotización', 'Cliente', 'Fecha', 'Estado', 'Total']))}
+    ${table('Pagos e ingresos relacionados', ['ID', 'Tipo', 'Fecha', 'Descripción', 'Monto'], reportRows(report.finance, ['ID', 'Tipo', 'Fecha', 'Descripción', 'Monto']))}
+  </div>`;
+  window.currentProjectReport = report;
+  openModal(`Reporte: ${p['Nombre del Proyecto'] || p['ID Proyectos']}`, body);
+}
+
+function downloadProjectReportPDF(report) {
+  if (!report) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+  const p = report.project;
+  const width = doc.internal.pageSize.getWidth();
+  const income = report.finance.filter(r => ['Ingreso', 'Pago'].includes(r['Tipo'])).reduce((sum, r) => sum + (Number(r['Monto']) || 0), 0);
+  const expenses = report.finance.filter(r => r['Tipo'] === 'Gasto').reduce((sum, r) => sum + (Number(r['Monto']) || 0), 0);
+  doc.setFontSize(18); doc.text('Reporte integral de proyecto', width / 2, 14, { align: 'center' });
+  doc.setFontSize(12); doc.text(`${p['Nombre del Proyecto'] || 'Proyecto'} (${p['ID Proyectos'] || '—'})`, 14, 24);
+  doc.setFontSize(9); doc.text(`Cliente: ${report.client?.['Nombre del Cliente'] || p['Cliente Relacionado'] || 'Sin cliente'}`, 14, 31);
+  doc.text(`Estado: ${p['Estado del Proyecto'] || '—'} | Etapa: ${p['Etapa actual'] || '—'} | Riesgo: ${p['Riesgo'] || 'No definido'}`, 14, 38);
+  doc.text(`Tareas: ${report.tasks.length} | Citas: ${report.meetings.length} | Actividades: ${report.activities.length} | Ingresos: ${reportMoney(income)} | Gastos: ${reportMoney(expenses)}`, 14, 45);
+  let y = 53;
+  const pdfTable = (title, headers, rows) => {
+    if (!rows.length) return;
+    doc.setFontSize(11); doc.text(title, 14, y); y += 3;
+    doc.autoTable({ startY: y, head: [headers], body: rows.slice(0, 30), styles: { fontSize: 7 }, headStyles: { fillColor: [37, 99, 235] }, margin: { left: 14, right: 14 } });
+    y = doc.lastAutoTable.finalY + 8;
+    if (y > 175) { doc.addPage(); y = 18; }
+  };
+  pdfTable('Tareas', ['ID', 'Tarea', 'Estado', 'Responsable', 'Límite'], reportRows(report.tasks, ['ID Tarea', 'Tarea', 'Estado', 'Responsable', 'Fecha límite']));
+  pdfTable('Citas', ['Fecha', 'Hora', 'Tipo', 'Responsable', 'Resultado'], reportRows(report.meetings, ['Fecha', 'Hora', 'Tipo', 'Responsable', 'Resultado']));
+  pdfTable('Actividades', ['Fecha', 'Indicador', 'Cantidad', 'Responsable', 'Notas'], reportRows(report.activities, ['Fecha', 'Indicador', 'Cantidad', 'Responsable', 'Notas']));
+  pdfTable('Finanzas', ['ID', 'Tipo', 'Fecha', 'Descripción', 'Monto'], reportRows(report.finance, ['ID', 'Tipo', 'Fecha', 'Descripción', 'Monto']));
+  doc.save(`reporte_${(p['ID Proyectos'] || 'proyecto').replace(/\s+/g, '_')}.pdf`);
+}
+
 // ── PIPELINE ─────────────────────────────────────────────────────
 window.pipelineData = [];
 async function loadPipeline() {
