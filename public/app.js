@@ -224,7 +224,8 @@ function navigateTo(section) {
   document.getElementById(`section-${section}`)?.classList.remove('hidden');
   document.getElementById(`nav-${section}`)?.classList.add('active');
   
-  document.getElementById('btnAdd').style.display = (section === 'dashboard' || section === 'tableros') ? 'none' : 'inline-block';
+  const hasOwnCreateControl = section === 'actividades' || section === 'pagos_gastos';
+  document.getElementById('btnAdd').style.display = (section === 'dashboard' || section === 'tableros' || hasOwnCreateControl) ? 'none' : 'inline-block';
   document.getElementById('btnDeleteMode').style.display = (section === 'dashboard' || section === 'tableros') ? 'none' : 'inline-block';
   if (isDeleteMode) toggleDeleteMode();
 
