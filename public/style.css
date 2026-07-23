@@ -262,6 +262,9 @@ button,
   position: sticky;
   top: 0;
   z-index: 50;
+  box-shadow: 0 5px 18px rgba(15, 23, 42, .06);
+  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
 }
 
 .page-title {
@@ -279,6 +282,7 @@ button,
 .topbar-right {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* ── BUTTONS ─────────────────────────────────────────────────────── */
@@ -1312,11 +1316,20 @@ tbody tr:hover {
   margin: 0 auto;
 }
 
+.modal.modal-record-detail {
+  max-width: 760px;
+  max-height: min(680px, calc(100vh - 32px));
+}
+
+.modal-record-detail .modal-body {
+  padding: 16px 20px 18px;
+}
+
 .record-detail-hero {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 4px 0 24px;
+  padding: 0 0 14px;
   border-bottom: 1px solid #e8edf5;
 }
 
@@ -1352,13 +1365,13 @@ tbody tr:hover {
 .record-details-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  padding-top: 22px;
+  gap: 10px;
+  padding-top: 14px;
 }
 
 .detail-field {
-  min-height: 116px;
-  padding: 18px;
+  min-height: 88px;
+  padding: 13px 15px;
   overflow: hidden;
   border: 1px solid #e4eaf3;
   border-radius: 16px;
@@ -1380,11 +1393,11 @@ tbody tr:hover {
 
 .detail-field-notes {
   grid-column: 1 / -1;
-  min-height: 132px;
+  min-height: 92px;
 }
 
 .detail-field-label {
-  margin-bottom: 12px;
+  margin-bottom: 7px;
   color: #64748b;
   font-size: 11px;
   font-weight: 800;
@@ -1393,10 +1406,10 @@ tbody tr:hover {
 }
 
 .detail-field-value {
-  min-height: 32px;
+  min-height: 25px;
   color: #172033;
   cursor: pointer;
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.35;
   white-space: pre-wrap;
@@ -1405,7 +1418,7 @@ tbody tr:hover {
 
 .detail-field-notes .detail-field-value {
   color: #475569;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -1424,7 +1437,7 @@ tbody tr:hover {
 .record-detail-actions {
   display: flex;
   justify-content: flex-end;
-  padding-top: 22px;
+  padding-top: 14px;
 }
 
 .detail-delete-button {
@@ -1434,12 +1447,20 @@ tbody tr:hover {
 }
 
 @media (max-width: 640px) {
+  .modal.modal-record-detail {
+    max-height: 96vh;
+  }
+
+  .modal-record-detail .record-details-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .record-details-grid {
     grid-template-columns: 1fr;
   }
 
-  .detail-field-notes {
-    grid-column: auto;
+  .modal-record-detail .detail-field-notes {
+    grid-column: 1 / -1;
   }
 
   .record-detail-hero h2 {

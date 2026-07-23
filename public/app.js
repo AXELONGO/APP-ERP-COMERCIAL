@@ -1058,6 +1058,7 @@ async function openModal(title, body) {
   }
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalBody').innerHTML = body;
+  document.getElementById('modal').classList.toggle('modal-record-detail', String(body || '').includes('record-detail-view'));
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
