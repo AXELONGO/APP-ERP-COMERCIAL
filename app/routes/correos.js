@@ -112,6 +112,26 @@ function registerCorreosRoutes(app) {
     try { res.json((await getPublicData(SHEET_NAME)).filter(item => item.campaign_id)); } catch (_) { res.json([]); }
   }));
 
+  app.get('/api/correos/prospectos', asyncHandler(async (req, res) => {
+    const prospects = await getPublicData('Prospectos');
+    const seen = new Set();
+    const recipients = prospects.map(prospect => {
+      const prospectId = String(prospect['ID Prospectos'] || '').trim();
+      const email = String(prospect['Correo Electrónico'] || '').trim().toLowerCase();
+      return {
+        prospect_id: prospectId,
+        name: String(prospect['Nombre del Contacto'] || '').trim(),
+        email,
+        segment: prospect['Etapa'] || prospect['Medio de contacto'] || prospect['Situacion'] || ''
+      };
+    }).filter(item => {
+      if (!item.prospect_id || !/^\S+@\S+\.\S+$/.test(item.email) || seen.has(item.email)) return false;
+      seen.add(item.email);
+      return true;
+    });
+    res.json(recipients);
+  }));
+
   app.post('/api/correos/draft', asyncHandler(async (req, res) => {
     const recipients = normalizeRecipients(req.body.recipients);
     if (!String(req.body.subject || '').trim()) return res.status(400).json({ error: 'El asunto es obligatorio' });

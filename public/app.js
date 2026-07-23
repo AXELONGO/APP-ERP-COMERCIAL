@@ -2539,13 +2539,14 @@ function descargarBalance() {
 }
 
 window.correosProspectosSeleccionados = new Set();
+window.correosProspectosData = [];
 
 function escapeCorreoHtml(value) {
   return String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 }
 
 async function loadCorreos() {
-  if (!window.prospectosData) window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => []);
+  window.correosProspectosData = await fetch(`${API}/api/correos/prospectos`).then(r => r.json()).catch(() => []);
   renderProspectosCorreo();
   const status = await fetch(`${API}/api/correos/auth/status`).then(r => r.json()).catch(() => ({ configured: false, authorized: false }));
   const statusEl = document.getElementById('correoAuthStatus');
@@ -2563,17 +2564,17 @@ function renderProspectosCorreo() {
   const list = document.getElementById('correo-prospectos-list');
   if (!list) return;
   const query = (document.getElementById('correo-prospectos-search')?.value || '').toLowerCase();
-  const prospects = (window.prospectosData || []).filter(p => {
-    const text = [p['Nombre del Contacto'], p['Correo Electrónico'], p['Medio de contacto'], p['Etapa']].join(' ').toLowerCase();
+  const prospects = (window.correosProspectosData || []).filter(p => {
+    const text = [p.name, p.email, p.segment].join(' ').toLowerCase();
     return text.includes(query);
   });
   list.innerHTML = prospects.length ? prospects.map(p => {
-    const id = p['ID Prospectos'] || '';
-    const email = p['Correo Electrónico'] || '';
+    const id = p.prospect_id || '';
+    const email = p.email || '';
     const checked = window.correosProspectosSeleccionados.has(id) ? 'checked' : '';
     return `<label style="display:flex;gap:8px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid #e5e7eb;cursor:pointer;">
       <input type="checkbox" value="${escapeCorreoHtml(id)}" ${checked} ${email ? '' : 'disabled'} onchange="toggleProspectoCorreo('${escapeCorreoHtml(id)}', this.checked)">
-      <span><strong>${escapeCorreoHtml(p['Nombre del Contacto'] || 'Sin nombre')}</strong><br><small>${escapeCorreoHtml(email || 'Sin correo')} · ${escapeCorreoHtml(p['Etapa'] || p['Medio de contacto'] || 'Sin segmento')}</small></span>
+      <span><strong>${escapeCorreoHtml(p.name || 'Sin nombre')}</strong><br><small>${escapeCorreoHtml(email || 'Sin correo')} · ${escapeCorreoHtml(p.segment || 'Sin segmento')}</small></span>
     </label>`;
   }).join('') : '<p class="text-muted">No hay prospectos que coincidan.</p>';
   actualizarConteoProspectosCorreo();
@@ -2589,9 +2590,9 @@ function toggleProspectoCorreo(id, checked) {
 
 function toggleTodosProspectosCorreo() {
   const query = (document.getElementById('correo-prospectos-search')?.value || '').toLowerCase();
-  (window.prospectosData || []).forEach(p => {
-    const text = [p['Nombre del Contacto'], p['Correo Electrónico'], p['Medio de contacto'], p['Etapa']].join(' ').toLowerCase();
-    if (text.includes(query) && p['Correo Electrónico']) window.correosProspectosSeleccionados.add(p['ID Prospectos']);
+  (window.correosProspectosData || []).forEach(p => {
+    const text = [p.name, p.email, p.segment].join(' ').toLowerCase();
+    if (text.includes(query) && p.email) window.correosProspectosSeleccionados.add(p.prospect_id);
   });
   renderProspectosCorreo();
 }
@@ -2606,7 +2607,7 @@ function obtenerPayloadCorreo() {
     subject: document.getElementById('correo-asunto').value.trim(),
     html_body: document.getElementById('correo-html').value,
     text_body: document.getElementById('correo-texto').value,
-    recipients: (window.prospectosData || []).filter(p => window.correosProspectosSeleccionados.has(p['ID Prospectos']) && p['Correo Electrónico']).map(p => ({ name: p['Nombre del Contacto'] || '', email: p['Correo Electrónico'], prospect_id: p['ID Prospectos'] }))
+    recipients: (window.correosProspectosData || []).filter(p => window.correosProspectosSeleccionados.has(p.prospect_id) && p.email).map(p => ({ name: p.name || '', email: p.email, prospect_id: p.prospect_id }))
   };
 }
 
