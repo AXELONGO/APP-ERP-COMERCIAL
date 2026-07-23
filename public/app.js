@@ -867,10 +867,18 @@ async function loadDashboard() {
 
 
 // ── MODAL ────────────────────────────────────────────────────────
-function openModal(title, body) {
+async function openModal(title, body) {
   if (!title && !body) {
     // If called without arguments, open the 'Nuevo Registro' form for current section
     title = 'Nuevo Registro';
+    if (currentSection === 'clientes' && !window.prospectosData) {
+      try {
+        window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json());
+      } catch (e) {
+        window.prospectosData = [];
+        showToast('No se pudieron cargar los prospectos', true);
+      }
+    }
     switch(currentSection) {
       case 'clientes': body = formCliente(); break;
       case 'prospectos': body = formProspecto(); break;
@@ -937,6 +945,12 @@ function formProspecto() {
 function formCliente() {
   return `<form onsubmit="submitForm(event,'clientes')">
     <div class="form-grid">
+      <div class="form-group full"><label>Convertir prospecto</label>
+        <select name="prospectoId" onchange="prefillClienteFromProspecto(this.value)">
+          <option value="">Cliente nuevo sin prospecto</option>
+          ${(window.prospectosData || []).filter(r => (r['Etapa'] || r['Etapa del Prospecto'] || '') !== 'Convertido').map(r => `<option value="${r['ID Prospectos'] || ''}">${r['Nombre del Contacto'] || 'Sin nombre'}${r['Correo Electrónico'] ? ` - ${r['Correo Electrónico']}` : ''}</option>`).join('')}
+        </select>
+      </div>
       <div class="form-group"><label>Nombre *</label><input name="nombre" required></div>
       <div class="form-group"><label>Empresa *</label><input name="empresa" required></div>
       <div class="form-group"><label>Correo</label><input name="correo" type="email"></div>
@@ -966,6 +980,23 @@ function formCliente() {
     </div>
     <button type="submit" class="btn btn-primary btn-block">Guardar Cliente</button>
   </form>`;
+}
+
+function prefillClienteFromProspecto(prospectoId) {
+  const prospecto = (window.prospectosData || []).find(r => r['ID Prospectos'] === prospectoId);
+  if (!prospecto) return;
+  const form = document.querySelector('#modalBody form');
+  if (!form) return;
+  const values = {
+    nombre: prospecto['Nombre del Contacto'] || '',
+    correo: prospecto['Correo Electrónico'] || '',
+    telefono: prospecto['Teléfono'] || '',
+    notas: prospecto['Notas'] || ''
+  };
+  Object.entries(values).forEach(([name, value]) => {
+    const input = form.elements[name];
+    if (input) input.value = value;
+  });
 }
 
 function generateOptions(dataStore, idKey, nameKey) {
@@ -1158,8 +1189,21 @@ async function submitForm(event, endpoint, id = null) {
     });
     const result = await r.json();
     if (result.success) {
+      let conversionWarning = '';
+      if (endpoint === 'clientes' && !id && body.prospectoId) {
+        try {
+          const conversion = await fetch(`${API}/api/prospectos/${encodeURIComponent(body.prospectoId)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ etapa: 'Convertido' })
+          });
+          if (!conversion.ok) conversionWarning = ' El prospecto no pudo marcarse como Convertido.';
+        } catch (e) {
+          conversionWarning = ' El prospecto no pudo marcarse como Convertido.';
+        }
+      }
       closeModal();
-      showToast('<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Registro guardado en Google Sheets');
+      showToast(`<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Registro guardado en Google Sheets.${conversionWarning}`);
       // ── WEBHOOK DISPATCH ─────────────────────────────────────
       const triggerSrc = id ? 'update' : 'create';
       const recordId   = id || result.id || result.newId || null;
@@ -1168,6 +1212,7 @@ async function submitForm(event, endpoint, id = null) {
       }
       // ─────────────────────────────────────────────────────────
       loadSection(currentSection);
+      if (endpoint === 'clientes' && body.prospectoId) loadProspectos();
       if (endpoint === 'pagos_gastos' && !id) {
         setTimeout(() => descargarVoucher(body), 500);
       }
