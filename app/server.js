@@ -65,9 +65,15 @@ app.use(fileUpload({
 app.use((req, res, next) => {
   const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
   const excluded = req.path === '/api/webhook-proxy' || req.path.startsWith('/api/auth/');
-  if (isMutation && !excluded) {
+  if (!excluded && req.path.startsWith('/api')) {
     res.on('finish', () => {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
+      if (res.statusCode >= 400 && req.path.startsWith('/api') && !res.locals.webhookErrorReported) {
+        reportBug({
+          level: 'http_error',
+          message: `HTTP ${res.statusCode} en ${req.method} ${req.path}`,
+          context: { method: req.method, path: req.path, status: res.statusCode, body: req.body }
+        });
+      } else if (isMutation && res.statusCode >= 200 && res.statusCode < 300) {
         reportModification({
           method: req.method,
           path: req.path,

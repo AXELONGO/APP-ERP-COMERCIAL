@@ -27,13 +27,14 @@ async function sendInformationEvent(payload) {
   }
 }
 
-async function reportBug({ level, message, error }) {
+async function reportBug({ level, message, error, context }) {
   console.error(`[BugReporter] ${level}: ${message}`);
   await sendInformationEvent({
     event_type: 'system.error',
     level,
     message,
-    error: error ? { name: error.name, stack: error.stack } : null
+    error: error ? { name: error.name, stack: error.stack } : null,
+    context: context || null
   });
 }
 
