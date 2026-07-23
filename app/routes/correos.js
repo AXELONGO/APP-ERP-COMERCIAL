@@ -105,7 +105,7 @@ function registerCorreosRoutes(app) {
   app.get('/api/correos/auth/status', (req, res) => {
     let configured = false;
     try { getGmailAuthUrl(); configured = true; } catch (_) {}
-    res.json({ configured, authorized: hasGmailToken(), scope: 'https://www.googleapis.com/auth/gmail.send', authUrl: configured ? '/api/auth/gmail' : null });
+    res.json({ configured, authorized: hasGmailToken(), scope: 'https://www.googleapis.com/auth/gmail.send', authUrl: configured ? '/api/auth/gmail' : null, reconnect_required: configured && !hasGmailToken() });
   });
 
   app.get('/api/correos/campanas', asyncHandler(async (req, res) => {
@@ -183,7 +183,7 @@ function registerCorreosRoutes(app) {
       campaign.send_stats = JSON.stringify(stats);
       campaign.updated_at = new Date().toISOString();
       await updateCampaign(sheets, campaignId, campaign);
-      return res.status(503).json({ success: false, campaign_id: campaignId, status: campaign.status, send_stats: stats, error: error.message });
+      return res.status(503).json({ success: false, campaign_id: campaignId, status: campaign.status, send_stats: stats, error: error.message, reconnect_required: error.message === 'GMAIL_NO_TOKEN' || error.message === 'GMAIL_SCOPE_REQUIRED', auth_url: '/api/auth/gmail' });
     }
     for (let index = 0; index < recipients.length; index += 1) {
       const recipient = recipients[index];

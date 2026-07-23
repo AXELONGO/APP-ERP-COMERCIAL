@@ -33,20 +33,24 @@ async function saveGmailTokenFromCode(code) {
 }
 
 function hasGmailToken() {
-  return fs.existsSync(TOKEN_PATH);
+  return fs.existsSync(TOKEN_PATH) || Boolean(process.env.GMAIL_REFRESH_TOKEN);
 }
 
 async function getGmail() {
   if (!hasGmailToken()) throw new Error('GMAIL_NO_TOKEN');
-  const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+  const tokens = fs.existsSync(TOKEN_PATH)
+    ? JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'))
+    : { refresh_token: process.env.GMAIL_REFRESH_TOKEN, scope: GMAIL_SCOPE };
   if (tokens.scope && !tokens.scope.split(/\s+/).includes(GMAIL_SCOPE)) {
     throw new Error('GMAIL_SCOPE_REQUIRED');
   }
   const oauth2 = getGmailOAuth2Client();
   oauth2.setCredentials(tokens);
   oauth2.on('tokens', newTokens => {
-    const existing = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
-    fs.writeFileSync(TOKEN_PATH, JSON.stringify({ ...existing, ...newTokens }, null, 2));
+    if (fs.existsSync(TOKEN_PATH)) {
+      const existing = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+      fs.writeFileSync(TOKEN_PATH, JSON.stringify({ ...existing, ...newTokens }, null, 2));
+    }
   });
   return google.gmail({ version: 'v1', auth: oauth2 });
 }

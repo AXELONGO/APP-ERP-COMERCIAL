@@ -2645,7 +2645,12 @@ async function enviarCampanaCorreo(event) {
   try {
     const response = await fetch(`${API}/api/correos/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Error al enviar la campaña');
+    if (!response.ok) {
+      const error = new Error(result.error || 'Error al enviar la campaña');
+      error.reconnectRequired = result.reconnect_required;
+      error.authUrl = result.auth_url;
+      throw error;
+    }
     const stats = result.send_stats || {};
     feedback.textContent = `Campaña ${result.campaign_id}: ${stats.sent || 0} aceptados por Gmail, ${stats.failed || 0} fallidos.`;
     if (stats.errors?.length) feedback.textContent += ` Primer error: ${stats.errors[0].email} (${stats.errors[0].message})`;
@@ -2656,8 +2661,13 @@ async function enviarCampanaCorreo(event) {
       Boolean(stats.failed)
     );
   } catch (error) {
-    feedback.textContent = error.message;
-    showToast(`No se enviaron los correos: ${error.message}`, true);
+    if (error.reconnectRequired) {
+      feedback.innerHTML = `Gmail necesita autorización en este servidor. <a href="${error.authUrl || '/api/auth/gmail'}" style="font-weight:600;text-decoration:underline;">Conectar Gmail</a>`;
+      showToast('Gmail necesita autorización antes de enviar.', true);
+    } else {
+      feedback.textContent = error.message;
+      showToast(`No se enviaron los correos: ${error.message}`, true);
+    }
   } finally {
     button.disabled = false;
   }
