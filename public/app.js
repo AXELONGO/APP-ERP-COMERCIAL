@@ -198,7 +198,9 @@ async function executeBulkDelete() {
   document.getElementById('btnDeleteMode').disabled = true;
   document.getElementById('textDeleteMode').textContent = 'Eliminando...';
   
-  const endpoint = currentSection === 'pipeline' ? 'pipeline_de_proyecto' : currentSection;
+  const endpoint = currentSection === 'tableros'
+    ? ({ pipeline: 'proyectos', 'pipeline-prospectos': 'prospectos', tareas: 'tareas' }[currentTablero] || 'tareas')
+    : (currentSection === 'pipeline' ? 'pipeline_de_proyecto' : currentSection);
   
   let successCount = 0;
   for (const id of selectedIds) {
@@ -226,7 +228,7 @@ function navigateTo(section) {
   
   const hasOwnCreateControl = section === 'actividades' || section === 'pagos_gastos';
   document.getElementById('btnAdd').style.display = (section === 'dashboard' || section === 'tableros' || hasOwnCreateControl) ? 'none' : 'inline-block';
-  document.getElementById('btnDeleteMode').style.display = (section === 'dashboard' || section === 'tableros') ? 'none' : 'inline-block';
+  document.getElementById('btnDeleteMode').style.display = section === 'dashboard' ? 'none' : 'inline-block';
   if (isDeleteMode) toggleDeleteMode();
 
   const titles = {
@@ -1647,6 +1649,7 @@ async function loadActividades() {
   
   const statsDiv = document.getElementById('actividadesStats');
   if (!statsDiv) return;
+  renderActividadesTable(data);
 
   // 1. Group by Asesor AND calculate global max per Indicador
   const byAsesor = {};
@@ -1710,6 +1713,22 @@ async function loadActividades() {
   }
   html += '</div>';
   statsDiv.innerHTML = html;
+}
+
+function renderActividadesTable(data) {
+  const tbody = document.querySelector('#tableActividades tbody');
+  if (!tbody) return;
+  tbody.innerHTML = data.length ? data.map(r => {
+    const id = r['ID Actividades'] || r['ID Actividad'] || r['ID'] || '';
+    return `<tr class="clickable-row">
+      <td><input type="checkbox" class="row-checkbox" value="${id}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-orange">${id || '—'}</span></td>
+      <td>${r['Fecha'] || '—'}</td>
+      <td>${r['Indicador'] || '—'}</td>
+      <td>${r['Cantidad'] || '—'}</td>
+      <td>${r['Responsable'] || '—'}</td>
+      <td title="${r['Notas'] || ''}">${truncate(r['Notas'], 40)}</td>
+    </tr>`;
+  }).join('') : emptyState();
 }
 
 async function submitActividad(e) {
@@ -2006,6 +2025,7 @@ async function loadPipelineProspectos() {
 
     card.innerHTML = `
       <div class="kanban-card-header">
+        <input type="checkbox" class="row-checkbox" value="${r['ID Prospectos'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)">
         <span class="badge badge-purple">${r['ID Prospectos'] || '—'}</span>
         <span style="font-size:11px;color:var(--text2);">${r['Fecha de Registro'] || ''}</span>
       </div>
@@ -2208,7 +2228,7 @@ async function loadPagosGastos() {
   const tbody = document.querySelector('#tablePagosGastos tbody');
   tbody.innerHTML = data.length ? data.map(r => `
     <tr class="clickable-row" onclick="editRecord('pagos_gastos', '${r['ID'] || ''}')">
-      <td><span class="badge badge-${(r['Tipo'] || 'Gasto') === 'Gasto' ? 'red' : 'green'}">${r['ID'] || '—'}</span></td>
+      <td><input type="checkbox" class="row-checkbox" value="${r['ID'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-${(r['Tipo'] || 'Gasto') === 'Gasto' ? 'red' : 'green'}">${r['ID'] || '—'}</span></td>
       <td><span class="badge badge-${(r['Tipo'] || '') === 'Gasto' ? 'red' : 'blue'}">${r['Tipo'] || '—'}</span></td>
       <td>${r['Fecha'] || '—'}</td>
       <td><strong>${r['Descripción'] || '—'}</strong></td>
