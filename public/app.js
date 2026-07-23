@@ -548,7 +548,7 @@ async function openReporteModal() {
       </select>
     </div>
     <p class="text-muted" style="margin:12px 0;">El reporte consultará registros relacionados de tareas, etapas, citas, actividades, archivos, cotizaciones, cliente y pagos/gastos.</p>
-    <button type="submit" class="btn btn-primary btn-block">Consultar estado del proyecto</button>
+    <button type="submit" class="btn btn-primary btn-block"><i class="ph ph-file-pdf"></i> Generar reporte PDF</button>
   </form>`);
 }
 
@@ -606,6 +606,8 @@ async function generateProjectReport(event) {
     quotes: relatedProjectRecords(quotes, project, client),
     finance: relatedProjectRecords(finance, project, client)
   };
+  window.currentProjectReport = report;
+  downloadProjectReportPDF(report);
   renderProjectReport(report);
 }
 
@@ -651,7 +653,6 @@ function renderProjectReport(report) {
     ${table('Cotizaciones', ['ID', 'Cliente', 'Fecha', 'Estado', 'Total'], reportRows(report.quotes, ['ID Cotización', 'Cliente', 'Fecha', 'Estado', 'Total']))}
     ${table('Pagos e ingresos relacionados', ['ID', 'Tipo', 'Fecha', 'Descripción', 'Monto'], reportRows(report.finance, ['ID', 'Tipo', 'Fecha', 'Descripción', 'Monto']))}
   </div>`;
-  window.currentProjectReport = report;
   openModal(`Reporte: ${p['Nombre del Proyecto'] || p['ID Proyectos']}`, body);
 }
 
@@ -677,8 +678,11 @@ function downloadProjectReportPDF(report) {
     if (y > 175) { doc.addPage(); y = 18; }
   };
   pdfTable('Tareas', ['ID', 'Tarea', 'Estado', 'Responsable', 'Límite'], reportRows(report.tasks, ['ID Tarea', 'Tarea', 'Estado', 'Responsable', 'Fecha límite']));
+  pdfTable('Pipeline y etapas', ['Proyecto', 'Etapa', 'Estado', 'Responsable', 'Comentarios'], reportRows(report.pipeline, ['ID Proyecto', 'Etapa', 'Estado', 'Responsable', 'Comentarios']));
   pdfTable('Citas', ['Fecha', 'Hora', 'Tipo', 'Responsable', 'Resultado'], reportRows(report.meetings, ['Fecha', 'Hora', 'Tipo', 'Responsable', 'Resultado']));
   pdfTable('Actividades', ['Fecha', 'Indicador', 'Cantidad', 'Responsable', 'Notas'], reportRows(report.activities, ['Fecha', 'Indicador', 'Cantidad', 'Responsable', 'Notas']));
+  pdfTable('Archivos y entregables', ['Nombre', 'Tipo', 'Proyecto', 'Cliente', 'Fecha'], reportRows(report.files, ['Nombre del Archivo', 'Tipo', 'Proyecto', 'Cliente', 'Fecha Subida']));
+  pdfTable('Cotizaciones', ['ID', 'Cliente', 'Fecha', 'Estado', 'Total'], reportRows(report.quotes, ['ID Cotización', 'Cliente', 'Fecha', 'Estado', 'Total']));
   pdfTable('Finanzas', ['ID', 'Tipo', 'Fecha', 'Descripción', 'Monto'], reportRows(report.finance, ['ID', 'Tipo', 'Fecha', 'Descripción', 'Monto']));
   doc.save(`reporte_${(p['ID Proyectos'] || 'proyecto').replace(/\s+/g, '_')}.pdf`);
 }
