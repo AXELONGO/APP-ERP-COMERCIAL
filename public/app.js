@@ -880,7 +880,11 @@ function openModal(title, body) {
       case 'citas': body = formCita(); break;
       case 'actividades': body = formActividad(); break;
       case 'cotizaciones': body = formCotizacion(); break;
-      case 'pagos_gastos': body = formPagosGastos(); break;
+      case 'pagos_gastos':
+      case 'pagos-y-gastos':
+      case 'pagos y gastos':
+        body = formPagosGastos();
+        break;
       default: body = '<p class="text-muted">No hay formulario disponible para esta sección.</p>';
     }
   }
