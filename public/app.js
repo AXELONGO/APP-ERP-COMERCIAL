@@ -2642,12 +2642,12 @@ async function enviarCampanaCorreo(event) {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Error al enviar la campaña');
     const stats = result.send_stats || {};
-    feedback.textContent = `Campaña ${result.campaign_id}: ${stats.sent || 0} enviados, ${stats.failed || 0} fallidos.`;
+    feedback.textContent = `Campaña ${result.campaign_id}: ${stats.sent || 0} aceptados por Gmail, ${stats.failed || 0} fallidos.`;
     if (stats.errors?.length) feedback.textContent += ` Primer error: ${stats.errors[0].email} (${stats.errors[0].message})`;
     showToast(
       stats.failed
-        ? `Envío parcial: ${stats.sent || 0} enviados, ${stats.failed} fallidos.`
-        : `Campaña enviada correctamente: ${stats.sent || 0} correo(s).`,
+        ? `Envío parcial: ${stats.sent || 0} aceptados por Gmail, ${stats.failed} fallidos.`
+        : `Gmail aceptó ${stats.sent || 0} correo(s) para envío.`,
       Boolean(stats.failed)
     );
   } catch (error) {

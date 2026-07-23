@@ -14,6 +14,8 @@ Configura las variables sin guardar secretos en Git:
 GMAIL_CLIENT_ID=...
 GMAIL_CLIENT_SECRET=...
 GMAIL_REDIRECT_URI=https://TU_DOMINIO/api/auth/gmail/callback
+GMAIL_FROM_ADDRESS=cuenta-autorizada@gmail.com
+GMAIL_FROM_NAME=ERP LUMARK
 GMAIL_MAX_RECIPIENTS_PER_CAMPAIGN=500
 GMAIL_SEND_DELAY_MS=100
 ```
@@ -44,6 +46,8 @@ La URI exacta de callback debe estar registrada en el cliente OAuth de Google. D
 ```
 
 Las campañas se guardan en la pestaña `Campañas`, sin alterar Prospectos ni otras campañas existentes.
+
+`GMAIL_FROM_ADDRESS` debe ser la cuenta que autorizó Gmail OAuth o un alias verificado en Gmail. El sistema reporta aceptación por Gmail; la entrega final o un rebote posterior no puede confirmarse con el único scope `gmail.send`.
 
 ## Envío
 

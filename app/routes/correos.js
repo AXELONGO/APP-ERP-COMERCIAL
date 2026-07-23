@@ -7,6 +7,8 @@ const HEADERS = ['campaign_id', 'subject', 'html_body', 'text_body', 'recipients
 const MAX_RECIPIENTS = Number(process.env.GMAIL_MAX_RECIPIENTS_PER_CAMPAIGN || 500);
 const DAILY_RECIPIENT_LIMIT = Number(process.env.GMAIL_DAILY_RECIPIENT_LIMIT || 500);
 const SEND_DELAY_MS = Number(process.env.GMAIL_SEND_DELAY_MS || 100);
+const FROM_ADDRESS = process.env.GMAIL_FROM_ADDRESS || 'demiansoberanes7@gmail.com';
+const FROM_NAME = process.env.GMAIL_FROM_NAME || 'ERP LUMARK';
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
@@ -52,11 +54,12 @@ async function updateCampaign(sheets, campaignId, campaign) {
   });
 }
 
-function encodeMessage({ to, subject, htmlBody, textBody }) {
+function encodeMessage({ to, from, subject, htmlBody, textBody }) {
   const boundary = `=_ERP_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const lines = [
     'MIME-Version: 1.0',
     'Content-Type: multipart/alternative; boundary="' + boundary + '"',
+    `From: ${FROM_NAME} <${from}>`,
     `To: ${to}`,
     `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
     '',
@@ -165,7 +168,7 @@ function registerCorreosRoutes(app) {
     for (let index = 0; index < recipients.length; index += 1) {
       const recipient = recipients[index];
       try {
-        await gmail.users.messages.send({ userId: 'me', requestBody: { raw: encodeMessage({ to: recipient.email, subject, htmlBody, textBody }) } });
+        await gmail.users.messages.send({ userId: 'me', requestBody: { raw: encodeMessage({ to: recipient.email, from: FROM_ADDRESS, subject, htmlBody, textBody }) } });
         stats.sent += 1;
       } catch (error) {
         stats.failed += 1;
@@ -181,7 +184,7 @@ function registerCorreosRoutes(app) {
     campaign.send_stats = JSON.stringify(stats);
     campaign.updated_at = new Date().toISOString();
     await updateCampaign(sheets, campaignId, campaign);
-    res.json({ success: stats.failed === 0, campaign_id: campaignId, status: campaign.status, send_stats: stats });
+    res.json({ success: stats.failed === 0, campaign_id: campaignId, status: campaign.status, sender: FROM_ADDRESS, delivery_status: 'accepted_by_gmail', send_stats: stats });
   }));
 }
 
