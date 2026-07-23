@@ -2142,21 +2142,28 @@ function loadTableros() {
 }
 
 async function openTareaModal() {
-  try {
-    const requests = [];
-    if (!window.proyectosData || !window.proyectosData.length) {
-      requests.push(fetch(`${API}/api/proyectos`).then(r => r.json()).then(data => { window.proyectosData = data; }));
+  const catalogs = [
+    ['proyectos', 'proyectosData'],
+    ['clientes', 'clientesData'],
+    ['asesores', 'asesoresData']
+  ];
+  const results = await Promise.all(catalogs.map(async ([endpoint, key]) => {
+    if (Array.isArray(window[key]) && window[key].length) return true;
+    try {
+      const response = await fetch(`${API}/api/${endpoint}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      window[key] = Array.isArray(data) ? data : [];
+      return Array.isArray(data);
+    } catch (e) {
+      window[key] = Array.isArray(window[key]) ? window[key] : [];
+      return false;
     }
-    if (!window.clientesData || !window.clientesData.length) {
-      requests.push(fetch(`${API}/api/clientes`).then(r => r.json()).then(data => { window.clientesData = data; }));
-    }
-    if (!window.asesoresData || !window.asesoresData.length) {
-      requests.push(fetch(`${API}/api/asesores`).then(r => r.json()).then(data => { window.asesoresData = data; }));
-    }
-    await Promise.all(requests);
-    openModal('Nueva Tarea', formTarea());
-  } catch (e) {
-    showToast('No se pudieron cargar proyectos y clientes', true);
+  }));
+
+  openModal('Nueva Tarea', formTarea());
+  if (results.some(result => !result)) {
+    showToast('El formulario abrió, pero algún catálogo no pudo cargar', true);
   }
 }
 
