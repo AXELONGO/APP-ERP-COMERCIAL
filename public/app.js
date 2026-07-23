@@ -1093,14 +1093,14 @@ function formPipeline() {
 function formTarea() {
   return `<form onsubmit="submitForm(event,'tareas')">
     <div class="form-grid">
-      <div class="form-group"><label>Proyecto</label>
-        <select name="idProyecto">
+      <div class="form-group"><label>Proyecto *</label>
+        <select name="idProyecto" required>
           <option value="">Selecciona Proyecto...</option>
           ${generateOptions('proyectosData', 'ID Proyectos', 'Nombre del Proyecto')}
         </select>
       </div>
-      <div class="form-group"><label>Cliente</label>
-        <select name="idCliente">
+      <div class="form-group"><label>Cliente *</label>
+        <select name="idCliente" required>
           <option value="">Selecciona Cliente...</option>
           ${generateOptions('clientesData', 'ID Clientes', 'Nombre del Cliente')}
         </select>
@@ -1211,6 +1211,7 @@ async function submitForm(event, endpoint, id = null) {
         dispatchWebhook(endpoint, triggerSrc, recordId, body);
       }
       // ─────────────────────────────────────────────────────────
+      if (endpoint === 'tareas') window.tareasData = null;
       loadSection(currentSection);
       if (endpoint === 'clientes' && body.prospectoId) loadProspectos();
       if (endpoint === 'pagos_gastos' && !id) {
@@ -2138,6 +2139,25 @@ function loadTableros() {
   const sel = document.getElementById('tableroSelector');
   currentTablero = sel ? sel.value : 'pipeline';
   loadTableroView(currentTablero);
+}
+
+async function openTareaModal() {
+  try {
+    const requests = [];
+    if (!window.proyectosData || !window.proyectosData.length) {
+      requests.push(fetch(`${API}/api/proyectos`).then(r => r.json()).then(data => { window.proyectosData = data; }));
+    }
+    if (!window.clientesData || !window.clientesData.length) {
+      requests.push(fetch(`${API}/api/clientes`).then(r => r.json()).then(data => { window.clientesData = data; }));
+    }
+    if (!window.asesoresData || !window.asesoresData.length) {
+      requests.push(fetch(`${API}/api/asesores`).then(r => r.json()).then(data => { window.asesoresData = data; }));
+    }
+    await Promise.all(requests);
+    openModal('Nueva Tarea', formTarea());
+  } catch (e) {
+    showToast('No se pudieron cargar proyectos y clientes', true);
+  }
 }
 
 function loadTableroView(name) {
