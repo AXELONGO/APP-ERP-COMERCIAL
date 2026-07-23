@@ -2545,6 +2545,10 @@ function escapeCorreoHtml(value) {
   return String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 }
 
+function isValidCorreo(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
 async function loadCorreos() {
   window.correosProspectosData = await fetch(`${API}/api/correos/prospectos`).then(r => r.json()).catch(() => []);
   renderProspectosCorreo();
@@ -2564,7 +2568,7 @@ function renderProspectosCorreo() {
   const list = document.getElementById('correo-prospectos-list');
   if (!list) return;
   const query = (document.getElementById('correo-prospectos-search')?.value || '').toLowerCase();
-  const prospects = (window.correosProspectosData || []).filter(p => {
+  const prospects = (window.correosProspectosData || []).filter(p => isValidCorreo(p.email)).filter(p => {
     const text = [p.name, p.email, p.segment].join(' ').toLowerCase();
     return text.includes(query);
   });
@@ -2573,7 +2577,7 @@ function renderProspectosCorreo() {
     const email = p.email || '';
     const checked = window.correosProspectosSeleccionados.has(id) ? 'checked' : '';
     return `<label style="display:flex;gap:8px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid #e5e7eb;cursor:pointer;">
-      <input type="checkbox" value="${escapeCorreoHtml(id)}" ${checked} ${email ? '' : 'disabled'} onchange="toggleProspectoCorreo('${escapeCorreoHtml(id)}', this.checked)">
+      <input type="checkbox" value="${escapeCorreoHtml(id)}" ${checked} onchange="toggleProspectoCorreo('${escapeCorreoHtml(id)}', this.checked)">
       <span><strong>${escapeCorreoHtml(p.name || 'Sin nombre')}</strong><br><small>${escapeCorreoHtml(email || 'Sin correo')} · ${escapeCorreoHtml(p.segment || 'Sin segmento')}</small></span>
     </label>`;
   }).join('') : '<p class="text-muted">No hay prospectos que coincidan.</p>';
@@ -2592,7 +2596,7 @@ function toggleTodosProspectosCorreo() {
   const query = (document.getElementById('correo-prospectos-search')?.value || '').toLowerCase();
   (window.correosProspectosData || []).forEach(p => {
     const text = [p.name, p.email, p.segment].join(' ').toLowerCase();
-    if (text.includes(query) && p.email) window.correosProspectosSeleccionados.add(p.prospect_id);
+    if (text.includes(query) && isValidCorreo(p.email)) window.correosProspectosSeleccionados.add(p.prospect_id);
   });
   renderProspectosCorreo();
 }
@@ -2607,7 +2611,7 @@ function obtenerPayloadCorreo() {
     subject: document.getElementById('correo-asunto').value.trim(),
     html_body: document.getElementById('correo-html').value,
     text_body: document.getElementById('correo-texto').value,
-    recipients: (window.correosProspectosData || []).filter(p => window.correosProspectosSeleccionados.has(p.prospect_id) && p.email).map(p => ({ name: p.name || '', email: p.email, prospect_id: p.prospect_id }))
+    recipients: (window.correosProspectosData || []).filter(p => window.correosProspectosSeleccionados.has(p.prospect_id) && isValidCorreo(p.email)).map(p => ({ name: p.name || '', email: p.email, prospect_id: p.prospect_id }))
   };
 }
 
