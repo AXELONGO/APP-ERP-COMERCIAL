@@ -13,6 +13,7 @@ const { registerWebhookProxy } = require('./routes/webhookProxy');
 const { registerCotizacionesRoutes } = require('./routes/cotizaciones');
 const { registerArchivosRoutes } = require('./routes/archivos');
 const { registerCalendlyRoutes } = require('./routes/calendly');
+const { registerCorreosRoutes } = require('./routes/correos');
 const { getAuthUrl, saveTokenFromCode } = require('./config/drive');
 
 process.on('uncaughtException', (err) => {
@@ -94,6 +95,7 @@ registerWebhookProxy(app);
 registerCotizacionesRoutes(app);
 registerArchivosRoutes(app);
 registerCalendlyRoutes(app);
+registerCorreosRoutes(app);
 
 // ── Google Drive OAuth ──────────────────────────────────────
 app.get('/api/auth/google', (req, res) => {

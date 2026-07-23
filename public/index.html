@@ -88,6 +88,9 @@
         <a href="#" class="nav-item" data-section="archivos" id="nav-archivos">
           <span class="nav-icon"><i class="ph ph-folder"></i></span><span>Archivos</span>
         </a>
+        <a href="#" class="nav-item" data-section="correos" id="nav-correos">
+          <span class="nav-icon"><i class="ph ph-envelope"></i></span><span>Correos</span>
+        </a>
 
         <div class="nav-section-label">FINANZAS</div>
         <a href="#" class="nav-item" data-section="pagos_gastos" id="nav-pagos_gastos">
@@ -551,6 +554,52 @@
         <tbody></tbody>
       </table>
     </div>
+  </section>
+
+  <!-- ── CORREOS ─────────────────────────────────────────────── -->
+  <section class="section hidden" id="section-correos">
+    <div id="correoAuthStatus" style="margin-bottom:16px;"></div>
+    <form id="formCorreos" onsubmit="enviarCampanaCorreo(event)">
+      <div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:16px;align-items:start;">
+        <div class="form-card standalone">
+          <h3 class="form-title">Redactar campaña</h3>
+          <div class="form-group">
+            <label>Asunto *</label>
+            <input id="correo-asunto" name="subject" required placeholder="Asunto del correo">
+          </div>
+          <div style="display:flex;gap:8px;margin:16px 0 8px;">
+            <button type="button" class="btn btn-outline" id="correo-tab-html" onclick="switchCorreoEditor('html')">HTML</button>
+            <button type="button" class="btn btn-outline" id="correo-tab-texto" onclick="switchCorreoEditor('texto')">Texto plano</button>
+          </div>
+          <div class="form-group" id="correo-editor-html">
+            <label>Contenido HTML *</label>
+            <textarea id="correo-html" rows="16" placeholder="<h1>Hola {{nombre}}</h1>\n<p>Contenido de tu campaña...</p>"></textarea>
+          </div>
+          <div class="form-group hidden" id="correo-editor-texto">
+            <label>Contenido en texto plano</label>
+            <textarea id="correo-texto" rows="16" placeholder="Contenido alternativo en texto plano..."></textarea>
+          </div>
+          <p class="text-muted">Si escribes HTML, se enviará junto con una versión de texto plano opcional.</p>
+        </div>
+
+        <div class="table-card" style="padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;">
+            <h3 style="font-weight:600;">Prospectos</h3>
+            <button type="button" class="btn btn-outline" onclick="toggleTodosProspectosCorreo()">Seleccionar todos</button>
+          </div>
+          <input class="search-input" id="correo-prospectos-search" placeholder="Buscar nombre o correo..." oninput="filtrarProspectosCorreo(this.value)" style="width:100%;margin-bottom:10px;">
+          <div id="correo-prospectos-count" class="text-muted" style="margin-bottom:8px;">0 seleccionados</div>
+          <div id="correo-prospectos-list" style="max-height:480px;overflow:auto;"></div>
+        </div>
+      </div>
+      <div class="table-card" style="margin-top:16px;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div id="correo-send-feedback" class="text-muted">Selecciona prospectos para comenzar.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-outline" onclick="guardarBorradorCorreo()">Guardar borrador</button>
+          <button type="submit" class="btn btn-primary" id="correo-send-button"><i class="ph ph-paper-plane-tilt"></i> Enviar campaña</button>
+        </div>
+      </div>
+    </form>
   </section>
 
 </main>

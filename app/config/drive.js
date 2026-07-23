@@ -6,8 +6,8 @@ const { Readable } = require('stream');
 const CREDENTIALS_PATH = path.join(__dirname, '../../credentials.json');
 const TOKEN_PATH = path.join(__dirname, '../../drive-token.json');
 
-const OAUTH_CLIENT_ID = process.env.DRIVE_CLIENT_ID || '885518092670-1o4u182t7lbkefla47dtcfgsa399t0id.apps.googleusercontent.com';
-const OAUTH_CLIENT_SECRET = process.env.DRIVE_CLIENT_SECRET || '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';
+const OAUTH_CLIENT_ID = process.env.DRIVE_CLIENT_ID || process.env.GMAIL_CLIENT_ID || '';
+const OAUTH_CLIENT_SECRET = process.env.DRIVE_CLIENT_SECRET || process.env.GMAIL_CLIENT_SECRET || '';
 const OAUTH_REDIRECT_URI = process.env.DRIVE_REDIRECT_URI || 'http://localhost:3000/api/auth/google/callback';
 
 let driveClient = null;

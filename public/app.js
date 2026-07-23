@@ -226,7 +226,7 @@ function navigateTo(section) {
   document.getElementById(`section-${section}`)?.classList.remove('hidden');
   document.getElementById(`nav-${section}`)?.classList.add('active');
   
-  const hasOwnCreateControl = section === 'actividades' || section === 'pagos_gastos';
+  const hasOwnCreateControl = section === 'actividades' || section === 'pagos_gastos' || section === 'correos';
   const addLabels = {
     prospectos: '+ Nuevo prospecto',
     clientes: '+ Convertir prospecto',
@@ -252,6 +252,7 @@ function navigateTo(section) {
     cotizaciones: ['Cotizaciones', 'Cotizaciones y presupuestos'],
     archivos: ['Archivos', 'Documentos y archivos del negocio'],
     pagos_gastos: ['Pagos y Gastos', 'Control de ingresos y egresos'],
+    correos: ['Correos', 'Campañas por Gmail para prospectos'],
   };
   const [title, sub] = titles[section] || ['', ''];
   document.getElementById('pageTitle').textContent = title;
@@ -342,6 +343,7 @@ function loadSection(section) {
     cotizaciones: loadCotizaciones,
     archivos: loadArchivos,
     pagos_gastos: loadPagosGastos,
+    correos: loadCorreos,
   };
   loaders[section]?.();
 }
@@ -2534,6 +2536,118 @@ function descargarBalance() {
   });
 
   doc.save(`balance_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+window.correosProspectosSeleccionados = new Set();
+
+function escapeCorreoHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+}
+
+async function loadCorreos() {
+  if (!window.prospectosData) window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => []);
+  renderProspectosCorreo();
+  const status = await fetch(`${API}/api/correos/auth/status`).then(r => r.json()).catch(() => ({ configured: false, authorized: false }));
+  const statusEl = document.getElementById('correoAuthStatus');
+  if (!statusEl) return;
+  if (status.authorized) {
+    statusEl.innerHTML = '<div style="background:#ecfdf5;color:#065f46;padding:12px 16px;border-radius:8px;">Gmail autorizado para envío.</div>';
+  } else if (status.configured) {
+    statusEl.innerHTML = '<div style="background:#fff7ed;color:#9a3412;padding:12px 16px;border-radius:8px;">Gmail requiere autorización. <a href="/api/auth/gmail" style="font-weight:600;text-decoration:underline;">Conectar Gmail</a></div>';
+  } else {
+    statusEl.innerHTML = '<div style="background:#fef2f2;color:#991b1b;padding:12px 16px;border-radius:8px;">Falta configurar GMAIL_CLIENT_ID y GMAIL_CLIENT_SECRET.</div>';
+  }
+}
+
+function renderProspectosCorreo() {
+  const list = document.getElementById('correo-prospectos-list');
+  if (!list) return;
+  const query = (document.getElementById('correo-prospectos-search')?.value || '').toLowerCase();
+  const prospects = (window.prospectosData || []).filter(p => {
+    const text = [p['Nombre del Contacto'], p['Correo Electrónico'], p['Medio de contacto'], p['Etapa']].join(' ').toLowerCase();
+    return text.includes(query);
+  });
+  list.innerHTML = prospects.length ? prospects.map(p => {
+    const id = p['ID Prospectos'] || '';
+    const email = p['Correo Electrónico'] || '';
+    const checked = window.correosProspectosSeleccionados.has(id) ? 'checked' : '';
+    return `<label style="display:flex;gap:8px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid #e5e7eb;cursor:pointer;">
+      <input type="checkbox" value="${escapeCorreoHtml(id)}" ${checked} ${email ? '' : 'disabled'} onchange="toggleProspectoCorreo('${escapeCorreoHtml(id)}', this.checked)">
+      <span><strong>${escapeCorreoHtml(p['Nombre del Contacto'] || 'Sin nombre')}</strong><br><small>${escapeCorreoHtml(email || 'Sin correo')} · ${escapeCorreoHtml(p['Etapa'] || p['Medio de contacto'] || 'Sin segmento')}</small></span>
+    </label>`;
+  }).join('') : '<p class="text-muted">No hay prospectos que coincidan.</p>';
+  actualizarConteoProspectosCorreo();
+}
+
+function filtrarProspectosCorreo() { renderProspectosCorreo(); }
+
+function toggleProspectoCorreo(id, checked) {
+  if (checked) window.correosProspectosSeleccionados.add(id);
+  else window.correosProspectosSeleccionados.delete(id);
+  actualizarConteoProspectosCorreo();
+}
+
+function toggleTodosProspectosCorreo() {
+  const query = (document.getElementById('correo-prospectos-search')?.value || '').toLowerCase();
+  (window.prospectosData || []).forEach(p => {
+    const text = [p['Nombre del Contacto'], p['Correo Electrónico'], p['Medio de contacto'], p['Etapa']].join(' ').toLowerCase();
+    if (text.includes(query) && p['Correo Electrónico']) window.correosProspectosSeleccionados.add(p['ID Prospectos']);
+  });
+  renderProspectosCorreo();
+}
+
+function actualizarConteoProspectosCorreo() {
+  const count = document.getElementById('correo-prospectos-count');
+  if (count) count.textContent = `${window.correosProspectosSeleccionados.size} seleccionados`;
+}
+
+function obtenerPayloadCorreo() {
+  return {
+    subject: document.getElementById('correo-asunto').value.trim(),
+    html_body: document.getElementById('correo-html').value,
+    text_body: document.getElementById('correo-texto').value,
+    recipients: (window.prospectosData || []).filter(p => window.correosProspectosSeleccionados.has(p['ID Prospectos']) && p['Correo Electrónico']).map(p => ({ name: p['Nombre del Contacto'] || '', email: p['Correo Electrónico'], prospect_id: p['ID Prospectos'] }))
+  };
+}
+
+async function guardarBorradorCorreo() {
+  const feedback = document.getElementById('correo-send-feedback');
+  const payload = obtenerPayloadCorreo();
+  if (!payload.subject) { feedback.textContent = 'Escribe un asunto para guardar el borrador.'; return; }
+  const response = await fetch(`${API}/api/correos/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const result = await response.json();
+  feedback.textContent = response.ok ? `Borrador guardado: ${result.campaign_id}` : (result.error || 'No se pudo guardar el borrador');
+}
+
+function switchCorreoEditor(mode) {
+  document.getElementById('correo-editor-html')?.classList.toggle('hidden', mode !== 'html');
+  document.getElementById('correo-editor-texto')?.classList.toggle('hidden', mode !== 'texto');
+}
+
+async function enviarCampanaCorreo(event) {
+  event.preventDefault();
+  const button = document.getElementById('correo-send-button');
+  const feedback = document.getElementById('correo-send-feedback');
+  const body = obtenerPayloadCorreo();
+  const recipients = body.recipients;
+  if (!body.subject || (!body.html_body && !body.text_body) || !recipients.length) {
+    feedback.textContent = 'Asunto, contenido y al menos un prospecto con correo son obligatorios.';
+    return;
+  }
+  button.disabled = true;
+  feedback.textContent = `Enviando ${recipients.length} correo(s)...`;
+  try {
+    const response = await fetch(`${API}/api/correos/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al enviar la campaña');
+    const stats = result.send_stats || {};
+    feedback.textContent = `Campaña ${result.campaign_id}: ${stats.sent || 0} enviados, ${stats.failed || 0} fallidos.`;
+    if (stats.errors?.length) feedback.textContent += ` Primer error: ${stats.errors[0].email} (${stats.errors[0].message})`;
+  } catch (error) {
+    feedback.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 
