@@ -6,7 +6,10 @@ const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 const TOKEN_PATH = path.join(__dirname, '../../gmail-token.json');
 const CLIENT_ID = process.env.GMAIL_CLIENT_ID || process.env.DRIVE_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET || process.env.DRIVE_CLIENT_SECRET || '';
-const REDIRECT_URI = process.env.GMAIL_REDIRECT_URI || 'http://localhost:3001/api/auth/gmail/callback';
+const REDIRECT_URI = String(process.env.GMAIL_REDIRECT_URI || 'http://localhost:3001/api/auth/gmail/callback')
+  .trim()
+  .replace(/^URI\s*=\s*/i, '')
+  .replace(/^['"]|['"]$/g, '');
 
 function getGmailOAuth2Client() {
   if (!CLIENT_ID || !CLIENT_SECRET) throw new Error('GMAIL_OAUTH_NOT_CONFIGURED');
