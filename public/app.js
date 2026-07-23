@@ -2617,6 +2617,7 @@ async function guardarBorradorCorreo() {
   const response = await fetch(`${API}/api/correos/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const result = await response.json();
   feedback.textContent = response.ok ? `Borrador guardado: ${result.campaign_id}` : (result.error || 'No se pudo guardar el borrador');
+  showToast(response.ok ? `Borrador guardado: ${result.campaign_id}` : (result.error || 'No se pudo guardar el borrador'), !response.ok);
 }
 
 function switchCorreoEditor(mode) {
@@ -2643,8 +2644,15 @@ async function enviarCampanaCorreo(event) {
     const stats = result.send_stats || {};
     feedback.textContent = `Campaña ${result.campaign_id}: ${stats.sent || 0} enviados, ${stats.failed || 0} fallidos.`;
     if (stats.errors?.length) feedback.textContent += ` Primer error: ${stats.errors[0].email} (${stats.errors[0].message})`;
+    showToast(
+      stats.failed
+        ? `Envío parcial: ${stats.sent || 0} enviados, ${stats.failed} fallidos.`
+        : `Campaña enviada correctamente: ${stats.sent || 0} correo(s).`,
+      Boolean(stats.failed)
+    );
   } catch (error) {
     feedback.textContent = error.message;
+    showToast(`No se enviaron los correos: ${error.message}`, true);
   } finally {
     button.disabled = false;
   }
