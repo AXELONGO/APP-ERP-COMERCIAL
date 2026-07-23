@@ -2,7 +2,7 @@ const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
 
-const SPREADSHEET_ID = '1ZCCirL1JXtQ7UIxcxZN9i6y716xY8NgEEQC3QmJu5gI';
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1ZCCirL1JXtQ7UIxcxZN9i6y716xY8NgEEQC3QmJu5gI';
 
 async function getSheets() {
   let authOptions = {
@@ -14,11 +14,14 @@ async function getSheets() {
       let rawCreds = process.env.GOOGLE_CREDENTIALS.trim();
       let isBase64 = false;
 
+      if (rawCreds.startsWith('"') && rawCreds.endsWith('"')) {
+        rawCreds = rawCreds.slice(1, -1);
+      }
+
       if (!rawCreds.startsWith('{') && !rawCreds.startsWith('"') && !rawCreds.startsWith('\\{')) {
-        try {
-          rawCreds = Buffer.from(rawCreds, 'base64').toString('utf-8');
-          isBase64 = true;
-        } catch (err) {}
+        rawCreds = Buffer.from(rawCreds, 'base64').toString('utf-8');
+        if (!rawCreds.trim().startsWith('{')) throw new Error('GOOGLE_CREDENTIALS no contiene JSON ni Base64 válido');
+        isBase64 = true;
       }
 
       if (!isBase64) {
@@ -33,13 +36,10 @@ async function getSheets() {
       throw new Error(`[AUTH] Error crítico parseando GOOGLE_CREDENTIALS: ${e.message}`);
     }
   } else {
-    const credPaths = [
-      path.join(__dirname, '../../credentials.json'),
-      path.join(__dirname, '../../credentials.new.json')
-    ];
+    const credPaths = [path.join(__dirname, '../../credentials.json')];
     const found = credPaths.find(p => fs.existsSync(p));
     if (!found) {
-      throw new Error('[AUTH] credentials.json / credentials.new.json NO ENCONTRADO');
+      throw new Error('[AUTH] GOOGLE_CREDENTIALS no está configurada y credentials.json no existe');
     }
     authOptions.keyFile = found;
   }
