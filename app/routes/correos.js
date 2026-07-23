@@ -2,7 +2,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { getSheets, getPublicData, getSheetId, SPREADSHEET_ID } = require('../config/sheets');
 const { getGmail, getGmailAuthUrl, saveGmailTokenFromCode, hasGmailToken } = require('../config/gmail');
 
-const SHEET_NAME = 'Campañas Gmail';
+const SHEET_NAME = 'Campañas';
 const HEADERS = ['campaign_id', 'subject', 'html_body', 'text_body', 'recipients', 'status', 'send_stats', 'created_at', 'updated_at'];
 const MAX_RECIPIENTS = Number(process.env.GMAIL_MAX_RECIPIENTS_PER_CAMPAIGN || 500);
 const DAILY_RECIPIENT_LIMIT = Number(process.env.GMAIL_DAILY_RECIPIENT_LIMIT || 500);

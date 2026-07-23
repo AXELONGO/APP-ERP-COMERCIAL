@@ -43,7 +43,7 @@ La URI exacta de callback debe estar registrada en el cliente OAuth de Google. D
 }
 ```
 
-Las campañas se guardan en la pestaña independiente `Campañas Gmail`, sin alterar la pestaña existente `Campañas de Correo`.
+Las campañas se guardan en la pestaña `Campañas`, sin alterar Prospectos ni otras campañas existentes.
 
 ## Envío
 
