@@ -399,11 +399,21 @@ async function seedLegacyPipelines() {
   const snapshot = await readSnapshot(sheets);
   const current = definitionsFromSnapshot(snapshot);
   const existingKeys = new Set(current.map(item => item.key));
-  const definitions = [...current];
+  const repairedCurrent = current.map(definition => {
+    if (LEGACY_MAP[definition.key] && definition.status === 'published' && definition.active && !definition.transitions.length) return rechainTransitions(definition);
+    return definition;
+  });
+  const definitions = [...repairedCurrent];
   const audits = [];
   const versions = [];
   const missing = defaultPipelines().filter(definition => !existingKeys.has(definition.key));
-  if (!missing.length) return current;
+  repairedCurrent.forEach((definition, index) => {
+    if (JSON.stringify(definition.transitions) !== JSON.stringify(current[index].transitions)) {
+      audits.push(auditRow({ pipelineId: definition.pipeline_id, targetType: 'pipeline', targetId: definition.pipeline_id, changeType: 'repair_transitions', actor: { user_name: 'migration' }, source: 'migration', diff: { previous: current[index].transitions, repaired: definition.transitions }, previousVersion: definition.version, newVersion: definition.version }));
+      versions.push(versionRow(definition, { user_name: 'migration' }));
+    }
+  });
+  if (!missing.length && !audits.length) return current;
   missing.forEach(definition => {
     definitions.push(definition);
     audits.push(auditRow({ pipelineId: definition.pipeline_id, targetType: 'pipeline', targetId: definition.pipeline_id, changeType: 'seed_legacy', actor: { user_name: 'migration' }, source: 'migration', diff: { created: definition.key }, newVersion: 1 }));
@@ -589,7 +599,7 @@ async function updateRecordField(sheets, recordType, recordId, field, value) {
 }
 
 async function transitionRecord({ pipelineKey, recordType, recordId, toStageId, toStepId = null, actor = null, source = 'api', expectedStateVersion = null }) {
-  const definition = await getPipeline(pipelineKey);
+  const definition = rechainTransitions(await getPipeline(pipelineKey));
   if (definition.entity_type !== recordType) throw validationError(`El pipeline ${definition.key} no acepta registros de tipo ${recordType}`, 422);
   if (!definition.active || definition.status !== 'published') throw validationError('El pipeline no está publicado y activo', 409);
   const target = definition.stages.find(stage => stage.stage_id === toStageId && stage.active);
