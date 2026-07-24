@@ -1772,9 +1772,17 @@ async function loadActividades() {
   setTodayDate();
   // Ensure we have asesoresData for dropdown
   if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json()).catch(() => []);
+  if (!window.prospectosData) window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => []);
+  if (!window.clientesData) window.clientesData = await fetch(`${API}/api/clientes`).then(r => r.json()).catch(() => []);
   const selectResp = document.getElementById('act-responsable');
   if (selectResp && selectResp.options.length <= 1) {
     selectResp.innerHTML = '<option value="">Selecciona Asesor...</option>' + generateOptions('asesoresData', 'Nombre del Asesor', 'Nombre del Asesor');
+  }
+  const relationSelect = document.getElementById('act-relacion');
+  if (relationSelect) {
+    const prospectOptions = (window.prospectosData || []).map(p => `<option value="Prospecto: ${escapeDetailHtml(p['ID Prospectos'] || '')} - ${escapeDetailHtml(p['Nombre del Contacto'] || '')}">Prospecto: ${escapeDetailHtml(p['Nombre del Contacto'] || p['ID Prospectos'] || '')}</option>`).join('');
+    const clientOptions = (window.clientesData || []).map(c => `<option value="Cliente: ${escapeDetailHtml(c['ID Clientes'] || '')} - ${escapeDetailHtml(c['Nombre del Cliente'] || '')}">Cliente: ${escapeDetailHtml(c['Nombre del Cliente'] || c['ID Clientes'] || '')}</option>`).join('');
+    relationSelect.innerHTML = `<option value="">Sin relación</option><optgroup label="Prospectos">${prospectOptions}</optgroup><optgroup label="Clientes">${clientOptions}</optgroup>`;
   }
 
   window.actividadesData = await fetch(`${API}/api/actividades`).then(r => r.json()).catch(() => []);
@@ -1876,7 +1884,7 @@ async function submitActividad(e) {
     indicador: document.getElementById('act-tipo').value,
     cantidad: document.getElementById('act-cantidad').value,
     responsable: document.getElementById('act-responsable').value,
-    notas: document.getElementById('act-notas').value
+    notas: document.getElementById('act-relacion').value
   };
 
   try {

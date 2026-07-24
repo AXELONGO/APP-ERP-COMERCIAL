@@ -457,8 +457,10 @@
             </select>
           </div>
           <div class="form-group" style="grid-column: span 2;">
-            <label>Notas / Evidencia</label>
-            <input type="text" id="act-notas" placeholder="Link o descripción" required>
+            <label>Prospecto o cliente relacionado <span class="field-optional">(opcional)</span></label>
+            <select id="act-relacion">
+              <option value="">Sin relación</option>
+            </select>
           </div>
         </div>
         <button type="submit" class="btn btn-primary btn-block">Guardar indicador</button>
@@ -473,7 +475,7 @@
     <div class="table-card" style="margin-top: 20px;">
       <h3 style="padding: 20px 20px 0; font-weight: 600;">Registros de Actividad</h3>
       <table id="tableActividades">
-        <thead><tr><th>ID</th><th>Fecha</th><th>Indicador</th><th>Cantidad</th><th>Responsable</th><th>Notas</th></tr></thead>
+        <thead><tr><th>ID</th><th>Fecha</th><th>Indicador</th><th>Cantidad</th><th>Responsable</th><th>Prospecto / Cliente</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>

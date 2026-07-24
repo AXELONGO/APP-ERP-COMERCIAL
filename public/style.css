@@ -255,7 +255,8 @@ button,
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 24px;
   padding: 16px 28px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -283,6 +284,13 @@ button,
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  order: -1;
+}
+
+.field-optional {
+  color: var(--text3);
+  font-size: .85em;
+  font-weight: 500;
 }
 
 /* ── BUTTONS ─────────────────────────────────────────────────────── */
@@ -1171,10 +1179,12 @@ tbody tr:hover {
     width: 100%;
     display: flex;
     align-items: center;
+    order: 0;
   }
 
   .topbar-right {
     width: 100%;
+    order: 1;
     flex-wrap: wrap;
     justify-content: space-between;
     gap: 8px;
