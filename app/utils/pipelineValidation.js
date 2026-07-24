@@ -97,6 +97,7 @@ function normalizeStage(stage, index, pipelineId) {
     steps: Array.isArray(stage.steps) ? stage.steps.map((step, stepIndex) => normalizeStep(step, stepIndex, stageId)) : []
   };
   if (!normalized.stage_key || !normalized.name) throw validationError('Cada etapa requiere key y name');
+  if (/^[=+\-@]/.test(normalized.legacy_value)) throw validationError('legacy_value no puede iniciar con un carácter de fórmula');
   return normalized;
 }
 

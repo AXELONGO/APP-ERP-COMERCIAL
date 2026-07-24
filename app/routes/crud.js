@@ -33,17 +33,13 @@ function crudRoutes(app, sheetName, range, mapper, customEndpoint, options = {})
 
   async function recordPipelineField(req, recordId) {
     if (!pipelineKey || req.body?.[stageField] === undefined || !recordId) return;
-    try {
-      await recordLegacyStageChange({
-        pipelineKey,
-        recordType,
-        recordId,
-        value: req.body[stageField],
-        actor: { user_id: req.get('x-user-id') || null, user_name: req.get('x-user-name') || null }
-      });
-    } catch (error) {
-      console.error('[Pipeline] No se pudo registrar el estado:', error.message);
-    }
+    await recordLegacyStageChange({
+      pipelineKey,
+      recordType,
+      recordId,
+      value: req.body[stageField],
+      actor: { user_id: req.get('x-user-id') || null, user_name: req.get('x-user-name') || null }
+    });
   }
 
   app.get(`/api/${endpoint}`, asyncHandler(async (req, res) => {

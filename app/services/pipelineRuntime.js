@@ -14,7 +14,7 @@ function compare(actual, operator, expected) {
     case 'gte': return Number(actual) >= Number(expected);
     case 'lt': return Number(actual) < Number(expected);
     case 'lte': return Number(actual) <= Number(expected);
-    case 'exists': return expected === undefined ? actual !== undefined && actual !== null : Boolean(expected) === (actual !== undefined && actual !== null && actual !== '');
+    case 'exists': return actual !== undefined && actual !== null && actual !== '';
     case 'contains': return String(actual ?? '').toLowerCase().includes(String(expected ?? '').toLowerCase());
     case 'starts_with': return String(actual ?? '').startsWith(String(expected ?? ''));
     case 'ends_with': return String(actual ?? '').endsWith(String(expected ?? ''));

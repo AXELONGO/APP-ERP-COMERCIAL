@@ -719,6 +719,14 @@ function pipelineStageForValue(pipeline, value) {
   return stages.find(stage => [stage.legacy_value, stage.stage_key, stage.name].map(String).includes(String(value))) || stages.find(stage => stage.is_initial) || stages[0] || null;
 }
 
+function pipelineProgress(pipeline, value) {
+  const stages = (pipeline?.stages || []).filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index);
+  const stage = pipelineStageForValue(pipeline, value);
+  const index = stages.findIndex(item => item.stage_id === stage?.stage_id);
+  if (index < 0) return 0;
+  return stages.length <= 1 ? 100 : Math.round((index / (stages.length - 1)) * 100);
+}
+
 function renderPipelineColumns(board, pipeline) {
   if (!board) return;
   const stages = (pipeline?.stages || []).filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index);
@@ -2349,7 +2357,7 @@ function filterTablero(query) {
   if (boardId) filterKanban(boardId, query);
 }
 
-window.pipelineEditorState = { definitions: {}, selectedKey: 'proyectos' };
+window.pipelineEditorState = { definitions: {}, selectedKey: 'proyectos', invalidJson: false };
 
 function pipelineEditorJson(value, fallback = []) {
   if (!value) return JSON.stringify(fallback, null, 2);
@@ -2384,7 +2392,7 @@ function updatePipelineStage(stageId, field, value) {
 function updatePipelineStageJson(stageId, field, value) {
   const stage = pipelineEditorStage(stageId);
   if (!stage) return;
-  try { stage[field] = JSON.parse(value); } catch (_) { /* backend validation explains invalid JSON on save */ }
+  try { stage[field] = JSON.parse(value); window.pipelineEditorState.invalidJson = false; } catch (_) { window.pipelineEditorState.invalidJson = true; showToast('El JSON de la etapa no es válido', true); }
 }
 
 function updatePipelineStep(stageId, stepId, field, value) {
@@ -2397,7 +2405,7 @@ function updatePipelineStepJson(stageId, stepId, field, value) {
   const stage = pipelineEditorStage(stageId);
   const step = stage?.steps?.find(item => item.step_id === pipelineEditorId(stepId));
   if (!step) return;
-  try { step[field] = JSON.parse(value); } catch (_) { /* backend validation explains invalid JSON on save */ }
+  try { step[field] = JSON.parse(value); window.pipelineEditorState.invalidJson = false; } catch (_) { window.pipelineEditorState.invalidJson = true; showToast('El JSON del paso no es válido', true); }
 }
 
 function movePipelineStage(stageId, direction) {
@@ -2521,6 +2529,7 @@ async function openPipelineManager() {
     const response = await fetch(`${API}/api/pipelines`);
     const definitions = await response.json();
     window.pipelineEditorState.definitions = Object.fromEntries(definitions.map(definition => [definition.key, JSON.parse(JSON.stringify(definition))]));
+    window.pipelineEditorState.invalidJson = false;
     window.pipelineEditorState.selectedKey = currentTablero === 'pipeline-prospectos' ? 'prospectos' : currentTablero === 'tareas' ? 'tareas' : 'proyectos';
     const selector = `<div class="form-group"><label>Pipeline</label><select id="pipelineEditorSelect" onchange="window.pipelineEditorState.selectedKey=this.value;renderPipelineEditor()">${definitions.map(definition => `<option value="${escapeDetailHtml(definition.key)}" ${definition.key === window.pipelineEditorState.selectedKey ? 'selected' : ''}>${escapeDetailHtml(definition.name)}</option>`).join('')}</select></div><div id="pipelineEditorBody"></div>`;
     openModal('Configurar pipeline dinámico', selector);
@@ -2530,14 +2539,22 @@ async function openPipelineManager() {
   }
 }
 
-async function savePipelineEditor() {
+async function persistPipelineEditorDefinition() {
   const key = window.pipelineEditorState.selectedKey;
   const definition = window.pipelineEditorState.definitions[key];
-  if (!definition) return;
+  if (!definition) return null;
+  if (window.pipelineEditorState.invalidJson) { showToast('Corrige el JSON inválido antes de guardar', true); return null; }
   const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(key)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-User-Name': 'Administrador', 'X-Source': 'pipeline_editor' }, body: JSON.stringify(definition) });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) { showToast(result.error || 'No se pudo guardar el pipeline', true); return; }
+  if (!response.ok) { showToast(result.error || 'No se pudo guardar el pipeline', true); return null; }
   window.pipelineConfigs[key] = result;
+  window.pipelineEditorState.definitions[key] = result;
+  return result;
+}
+
+async function savePipelineEditor() {
+  const result = await persistPipelineEditorDefinition();
+  if (!result) return;
   closeModal();
   showToast('Configuración guardada');
   loadTableroView(currentTablero);
@@ -2545,6 +2562,8 @@ async function savePipelineEditor() {
 
 async function publishPipelineEditor() {
   const key = window.pipelineEditorState.selectedKey;
+  const saved = await persistPipelineEditorDefinition();
+  if (!saved) return;
   const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(key)}/publish`, { method: 'POST', headers: { 'X-User-Name': 'Administrador', 'X-Source': 'pipeline_editor' } });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) { showToast(result.error || 'No se pudo publicar el pipeline', true); return; }

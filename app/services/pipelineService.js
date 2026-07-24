@@ -71,7 +71,8 @@ function columnLetter(index) {
 }
 
 function stringify(value) {
-  return value && (Array.isArray(value) || typeof value === 'object') ? JSON.stringify(value) : String(value || '');
+  if (value === undefined || value === null) return '';
+  return Array.isArray(value) || typeof value === 'object' ? JSON.stringify(value) : String(value);
 }
 
 function basePipeline(key) {
@@ -154,7 +155,7 @@ async function ensurePipelineSheets(sheets) {
   }
 }
 
-async function readRows(sheets, sheetName) {
+async function readRows(sheets, sheetName, { allowMissing = false } = {}) {
   try {
     const response = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `'${sheetName}'!A:Z` });
     const values = response.data.values || [];
@@ -165,8 +166,9 @@ async function readRows(sheets, sheetName) {
       headers.forEach((header, column) => { if (header) item[header] = row[column] ?? ''; });
       return item;
     }).filter(row => Object.keys(row).length > 1);
-  } catch (_) {
-    return [];
+  } catch (error) {
+    if (allowMissing) return [];
+    throw error;
   }
 }
 
@@ -278,7 +280,8 @@ function rechainTransitions(definition) {
   const activeStages = definition.stages.filter(stage => stage.active).sort((a, b) => a.order_index - b.order_index);
   const validIds = new Set(activeStages.map(stage => stage.stage_id));
   const transitions = (definition.transitions || []).filter(item => item.active !== false && validIds.has(item.from_stage_id) && validIds.has(item.to_stage_id));
-  const pairs = new Set(transitions.map(item => `${item.from_stage_id}->${item.to_stage_id}`));
+  const preservedTransitions = (definition.transitions || []).filter(item => item.active === false && validIds.has(item.from_stage_id) && validIds.has(item.to_stage_id));
+  const pairs = new Set([...transitions, ...preservedTransitions].map(item => `${item.from_stage_id}->${item.to_stage_id}`));
   for (let index = 0; index < activeStages.length - 1; index += 1) {
     const from = activeStages[index];
     const to = activeStages[index + 1];
@@ -287,7 +290,7 @@ function rechainTransitions(definition) {
       transitions.push({ transition_id: `TR-${from.stage_id}-${to.stage_id}`, pipeline_id: definition.pipeline_id, from_stage_id: from.stage_id, to_stage_id: to.stage_id, event_key: 'stage_changed', order_index: transitions.length, active: true, conditions: [], actions: [] });
     }
   }
-  return { ...definition, transitions };
+  return { ...definition, transitions: [...transitions, ...preservedTransitions] };
 }
 
 function pipelineRow(definition) {
@@ -469,7 +472,7 @@ async function rollbackPipeline(reference, version, options = {}) {
   const sheets = await getSheets();
   await ensurePipelineSheets(sheets);
   const versions = await readRows(sheets, CONFIG_SHEETS.versions);
-  const selected = versions.find(row => row.pipeline_id === current.pipeline_id && Number(row.version) === Number(version));
+  const selected = versions.filter(row => row.pipeline_id === current.pipeline_id && Number(row.version) === Number(version)).sort((a, b) => Number(a._rowIndex || 0) - Number(b._rowIndex || 0)).pop();
   if (!selected) throw validationError(`Versión no encontrada: ${version}`, 404);
   const snapshot = parseJson(selected.snapshot_json, null);
   if (!snapshot) throw validationError('La versión almacenada no es válida', 500);
@@ -539,6 +542,7 @@ async function validateLegacyStageChange({ pipelineKey, value }) {
 
 async function recordLegacyStageChange({ pipelineKey, recordType, recordId, value, actor = null }) {
   const { definition, stage } = await validateLegacyStageChange({ pipelineKey, value });
+  if (definition.entity_type !== recordType) throw validationError(`El pipeline ${definition.key} no acepta registros de tipo ${recordType}`, 422);
   const sheets = await getSheets();
   await ensurePipelineSheets(sheets);
   const previous = await currentState(sheets, definition, recordType, recordId);
@@ -569,7 +573,7 @@ async function updateLegacyField(sheets, recordType, recordId, value) {
   const headers = result.data.values?.[0] || [];
   const index = headers.findIndex(header => header === mapping.field);
   if (index === -1) throw validationError(`No existe la columna ${mapping.field} en ${mapping.sheet}`, 500);
-  await sheets.spreadsheets.values.update({ spreadsheetId: SPREADSHEET_ID, range: `'${mapping.sheet}'!${columnLetter(index)}${rowNumber}`, valueInputOption: 'USER_ENTERED', requestBody: { values: [[value]] } });
+  await sheets.spreadsheets.values.update({ spreadsheetId: SPREADSHEET_ID, range: `'${mapping.sheet}'!${columnLetter(index)}${rowNumber}`, valueInputOption: 'RAW', requestBody: { values: [[value]] } });
 }
 
 async function updateRecordField(sheets, recordType, recordId, field, value) {
@@ -581,11 +585,13 @@ async function updateRecordField(sheets, recordType, recordId, field, value) {
   const headers = result.data.values?.[0] || [];
   const index = headers.findIndex(header => header === field);
   if (index === -1) throw validationError(`No existe el campo ${field} en ${mapping.sheet}`, 400);
-  await sheets.spreadsheets.values.update({ spreadsheetId: SPREADSHEET_ID, range: `'${mapping.sheet}'!${columnLetter(index)}${rowNumber}`, valueInputOption: 'USER_ENTERED', requestBody: { values: [[value ?? '']] } });
+  await sheets.spreadsheets.values.update({ spreadsheetId: SPREADSHEET_ID, range: `'${mapping.sheet}'!${columnLetter(index)}${rowNumber}`, valueInputOption: 'RAW', requestBody: { values: [[value ?? '']] } });
 }
 
 async function transitionRecord({ pipelineKey, recordType, recordId, toStageId, toStepId = null, actor = null, source = 'api', expectedStateVersion = null }) {
   const definition = await getPipeline(pipelineKey);
+  if (definition.entity_type !== recordType) throw validationError(`El pipeline ${definition.key} no acepta registros de tipo ${recordType}`, 422);
+  if (!definition.active || definition.status !== 'published') throw validationError('El pipeline no está publicado y activo', 409);
   const target = definition.stages.find(stage => stage.stage_id === toStageId && stage.active);
   if (!target) throw validationError('La etapa destino no existe o está inactiva');
   const targetStep = toStepId ? target.steps.find(step => step.step_id === toStepId && step.active) : target.steps.find(step => step.active);
@@ -594,6 +600,8 @@ async function transitionRecord({ pipelineKey, recordType, recordId, toStageId, 
   const sheets = await getSheets();
   await ensurePipelineSheets(sheets);
   const previous = await currentState(sheets, definition, recordType, recordId);
+  const existingRecord = await legacyRecord(recordType, recordId);
+  if (!Object.keys(existingRecord).length) throw validationError(`Registro no encontrado: ${recordId}`, 404);
   if (expectedStateVersion !== null && Number(expectedStateVersion) !== Number(previous.state_version)) throw validationError('El estado cambió; recarga el registro antes de moverlo', 409);
   let actionResults = [];
   const stageChanged = previous.stage_id !== target.stage_id;
@@ -601,7 +609,7 @@ async function transitionRecord({ pipelineKey, recordType, recordId, toStageId, 
   if (stageChanged || stepChanged) {
     const transition = definition.transitions.find(item => item.active !== false && item.from_stage_id === previous.stage_id && item.to_stage_id === target.stage_id);
     if (stageChanged && !transition) throw validationError('La transición solicitada no está permitida', 422);
-    const context = { ...(await legacyRecord(recordType, recordId)), record_id: recordId, record_type: recordType, from_stage_id: previous.stage_id, to_stage_id: target.stage_id, stage_id: previous.stage_id, step_id: nextStepId };
+    const context = { ...existingRecord, record_id: recordId, record_type: recordType, from_stage_id: previous.stage_id, to_stage_id: target.stage_id, stage_id: previous.stage_id, step_id: nextStepId };
     if (stageChanged && !evaluateConditions(transition.conditions, context)) throw validationError('Las condiciones de la transición no se cumplen', 422);
     if (!evaluateConditions(target.conditions, context) || !evaluateConditions(targetStep?.conditions, context)) throw validationError('Las condiciones de la etapa no se cumplen', 422);
     const actions = [...(stageChanged ? (transition.actions || []) : []), ...(stageChanged ? (target.actions || []) : []), ...(targetStep?.actions || [])];
@@ -645,6 +653,7 @@ async function removeStage(reference, stageId, { successorStageId = null, actor 
 async function getState(reference, recordType, recordId) {
   const definition = await getPipeline(reference);
   const sheets = await getSheets();
+  await ensurePipelineSheets(sheets);
   const state = await currentState(sheets, definition, recordType, recordId);
   const stage = definition.stages.find(item => item.stage_id === state.stage_id) || null;
   return { ...state, stage, pipeline: definition };
@@ -653,6 +662,7 @@ async function getState(reference, recordType, recordId) {
 async function getAudit(reference) {
   const definition = await getPipeline(reference);
   const sheets = await getSheets();
+  await ensurePipelineSheets(sheets);
   const rows = await readRows(sheets, CONFIG_SHEETS.audit);
   return rows.filter(row => row.pipeline_id === definition.pipeline_id).map(row => ({
     ...row,
