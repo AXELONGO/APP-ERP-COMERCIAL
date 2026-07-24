@@ -104,20 +104,22 @@ async function sendWebhook(module, payload, attempt = 1) {
       body: JSON.stringify({ url, payload }),
     });
 
-    if (res.ok) {
+    const result = await res.json().catch(() => ({}));
+    if (res.ok && result.success !== false) {
       console.log(`[WEBHOOK ✅] ${payload.event_type} → ${url} (intento ${attempt})`);
       console.log(`[WEBHOOK]   event_id: ${payload.event_id} | record_id: ${payload.record_id}`);
     } else {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      throw new Error(`HTTP ${result.status || res.status}: ${res.statusText}`);
     }
   } catch (err) {
     console.error(`[WEBHOOK ❌] ${payload.event_type} → Intento ${attempt}/${MAX_RETRIES}: ${err.message}`);
     if (attempt < MAX_RETRIES) {
       console.log(`[WEBHOOK ↩] Reintentando en ${RETRY_DELAY_MS}ms...`);
-      setTimeout(() => sendWebhook(module, payload, attempt + 1), RETRY_DELAY_MS * attempt);
+      setTimeout(() => sendWebhook(module, payload, attempt + 1).catch(() => {}), RETRY_DELAY_MS * attempt);
     } else {
       console.error(`[WEBHOOK 🚫] Máximo de reintentos alcanzado. Payload guardado en cola local.`);
       webhookRetryQueue.push({ module, payload, failedAt: new Date().toISOString() });
+      throw err;
     }
   }
 }
@@ -146,13 +148,40 @@ function dispatchWebhook(endpointOrModule, triggerSource, recordId, recordData, 
   );
 
   // Fire & forget — no bloquea la UI
-  sendWebhook(module, payload);
+  sendWebhook(module, payload).catch(() => {});
+}
+
+const reportedClientErrors = new Map();
+const CLIENT_ERROR_DEDUP_WINDOW_MS = 5 * 60 * 1000;
+
+function clientErrorSeverity(eventType, message) {
+  if (eventType === 'system.unhandled_rejection' || /fetch|api|guardar|formulario|network/i.test(String(message))) return 'alta';
+  if (/ReferenceError|SyntaxError|TypeError/i.test(String(message)) || eventType === 'system.browser_error') return 'media';
+  return 'baja';
 }
 
 function reportClientError(eventType, details) {
+  const message = details?.message || 'Error de navegador';
+  const stack = details?.stack || null;
+  const location = stack ? stack.split('\n').find(line => /:\d+:\d+/.test(line))?.trim() || null : null;
+  const dedupKey = [eventType, message, location].join('|');
+  const lastReport = reportedClientErrors.get(dedupKey) || 0;
+  if (Date.now() - lastReport < CLIENT_ERROR_DEDUP_WINDOW_MS) return;
+  reportedClientErrors.set(dedupKey, Date.now());
+
   const payload = buildPayload('sistema', 'error', null, details);
   payload.event_type = eventType;
-  sendWebhook('sistema', payload);
+  payload.severity = clientErrorSeverity(eventType, message);
+  payload.error_message = message;
+  payload.message = message;
+  payload.error_location = location;
+  payload.stack_trace = stack;
+  payload.source_url = window.location.href;
+  payload.environment = ['localhost', '127.0.0.1'].includes(window.location.hostname) ? 'desarrollo' : 'produccion';
+  payload.occurred_at = payload.sent_at;
+  payload.dedup_key = dedupKey;
+  payload.data = { ...(details || {}), message, stack };
+  sendWebhook('sistema', payload).catch(() => {});
 }
 
 window.addEventListener('error', event => {

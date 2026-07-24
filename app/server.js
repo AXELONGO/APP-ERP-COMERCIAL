@@ -23,7 +23,12 @@ process.on('uncaughtException', (err) => {
 });
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled Rejection:', reason);
-  reportBug({ level: 'critical', message: 'Unhandled Rejection: ' + (reason?.message || reason), error: reason });
+  reportBug({
+    level: 'critical',
+    eventType: 'system.unhandled_rejection',
+    message: 'Unhandled Rejection: ' + (reason?.message || reason),
+    error: reason
+  });
 });
 
 const originalDateNow = Date.now;
@@ -66,13 +71,25 @@ app.use(fileUpload({
 app.use((req, res, next) => {
   const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
   const excluded = req.path === '/api/webhook-proxy' || req.path.startsWith('/api/auth/');
+  let responseBody = null;
+  const originalJson = res.json.bind(res);
+  res.json = body => {
+    responseBody = body;
+    return originalJson(body);
+  };
   if (!excluded && req.path.startsWith('/api')) {
     res.on('finish', () => {
       if (res.statusCode >= 400 && req.path.startsWith('/api') && !res.locals.webhookErrorReported) {
         reportBug({
           level: 'http_error',
           message: `HTTP ${res.statusCode} en ${req.method} ${req.path}`,
-          context: { method: req.method, path: req.path, status: res.statusCode, body: req.body }
+          context: {
+            method: req.method,
+            path: req.path,
+            status: res.statusCode,
+            body: req.body,
+            source_url: `${req.protocol}://${req.get('host')}${req.originalUrl}`
+          }
         });
       } else if (isMutation && res.statusCode >= 200 && res.statusCode < 300) {
         reportModification({
@@ -80,7 +97,16 @@ app.use((req, res, next) => {
           path: req.path,
           status: res.statusCode,
           body: req.body,
-          response: res.locals.webhookResponse || null
+          response: responseBody || res.locals.webhookResponse || null,
+          recordId: req.params.id || null,
+          buttonActionId: req.get('x-button-action-id') || null,
+          userContext: {
+            user_id: req.get('x-user-id') || null,
+            user_name: req.get('x-user-name') || null,
+            source: req.get('x-source') || 'erp',
+            origin: req.get('origin') || req.get('referer') || null
+          },
+          sourceUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`
         });
       }
     });
