@@ -1,6 +1,8 @@
 const { seedLegacyPipelines } = require('../../app/services/pipelineService');
+const { ensureProspectosGiroColumn } = require('../../app/services/legacySchemaService');
 
-seedLegacyPipelines()
+ensureProspectosGiroColumn()
+  .then(() => seedLegacyPipelines())
   .then(definitions => {
     console.log(`Configuración dinámica lista: ${definitions.length} pipelines.`);
   })

@@ -20,7 +20,7 @@ function registerModules(app) {
     d.giro !== undefined ? d.giro : (e[14] || '')
   ]);
 
-  crudRoutes(app, 'Prospectos', 'A:O', (d, e = []) => [
+  crudRoutes(app, 'Prospectos', 'A:P', (d, e = []) => [
     e[0] || '',
     d.nombre !== undefined ? d.nombre : (e[1] || ''),
     d.correo !== undefined ? d.correo : (e[2] || ''),
@@ -35,7 +35,8 @@ function registerModules(app) {
     d.necesidad !== undefined ? d.necesidad : (e[11] || ''),
     e[12] || '',
     e[13] || '',
-    d.etapa !== undefined ? d.etapa : (e[14] || 'Nuevo')
+    d.etapa !== undefined ? d.etapa : (e[14] || 'Nuevo'),
+    d.giro !== undefined ? d.giro : (e[15] || '')
   ], undefined, { pipelineKey: 'prospectos', recordType: 'prospectos', stageField: 'etapa' });
 
   crudRoutes(app, 'Proyectos', 'A:M', (d, e = [], f = [], rowNum) => [

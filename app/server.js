@@ -17,6 +17,7 @@ const { registerCalendlyRoutes } = require('./routes/calendly');
 const { registerCorreosRoutes } = require('./routes/correos');
 const { registerPipelineRoutes } = require('./routes/pipelines');
 const { seedLegacyPipelines } = require('./services/pipelineService');
+const { ensureProspectosGiroColumn } = require('./services/legacySchemaService');
 const { getAuthUrl, saveTokenFromCode } = require('./config/drive');
 
 process.on('uncaughtException', (err) => {
@@ -158,6 +159,7 @@ async function startServer() {
   const hasGoogleCredentials = Boolean(process.env.GOOGLE_CREDENTIALS || fs.existsSync(path.join(__dirname, '../../credentials.json')));
   if (process.env.PIPELINES_AUTO_MIGRATE !== 'false' && hasGoogleCredentials) {
     try {
+      await ensureProspectosGiroColumn();
       const definitions = await seedLegacyPipelines();
       console.log(`[Pipeline] Configuración disponible: ${definitions.length} pipelines.`);
     } catch (error) {

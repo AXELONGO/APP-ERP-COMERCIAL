@@ -121,6 +121,39 @@ const MAPPING = {
   proyecto: ['Proyecto']
 };
 
+const GIROS_INDUSTRIA = [
+  'Agricultura y agroindustria',
+  'Alimentos y bebidas',
+  'Automotriz',
+  'Comercio y retail',
+  'Construccion',
+  'Consultoria',
+  'Educacion',
+  'Energia',
+  'Entretenimiento',
+  'Finanzas y seguros',
+  'Gobierno',
+  'Inmobiliaria',
+  'Manufactura',
+  'Marketing y publicidad',
+  'Medios y comunicacion',
+  'Medicina y salud',
+  'Moda y belleza',
+  'Organizacion sin fines de lucro',
+  'Restaurantes y hospitalidad',
+  'Servicios profesionales',
+  'SaaS y software',
+  'Tecnologia',
+  'Telecomunicaciones',
+  'Transporte y logistica',
+  'Turismo',
+  'Otro'
+];
+
+function giroOptions(selectedValue = '') {
+  return GIROS_INDUSTRIA.map(giro => `<option value="${escapeDetailHtml(giro)}" ${String(giro) === String(selectedValue) ? 'selected' : ''}>${escapeDetailHtml(giro)}</option>`).join('');
+}
+
 const ETAPAS_MAP = {
   '1': '1 → Activación',
   '2': '2 → Diagnóstico',
@@ -370,8 +403,15 @@ async function setTodayDate() {
 // ── PROSPECTOS ───────────────────────────────────────────────────
 window.prospectosData = [];
 async function loadProspectos() {
-  if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json());
-  window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json());
+  const asesoresRequest = Array.isArray(window.asesoresData)
+    ? Promise.resolve(window.asesoresData)
+    : fetch(`${API}/api/asesores`).then(r => r.json());
+  const [asesores, prospectos] = await Promise.all([
+    asesoresRequest,
+    fetch(`${API}/api/prospectos`).then(r => r.json())
+  ]);
+  window.asesoresData = asesores;
+  window.prospectosData = prospectos;
   const data = filterByDate(window.prospectosData);
 
   // ── Botón de Campaña movido a index.html estático ──────────
@@ -383,6 +423,7 @@ async function loadProspectos() {
       <td><strong>${r['Nombre del Contacto'] || '—'}</strong></td>
       <td>${r['Correo Electrónico'] || '—'}</td>
       <td>${r['Teléfono'] || '—'}</td>
+      <td><span class="badge badge-gray">${escapeDetailHtml(r['Giro'] || '—')}</span></td>
       <td><span class="badge badge-blue">${r['Medio de contacto'] || '—'}</span></td>
       <td>${r['Fecha de Registro'] || '—'}</td>
       <td title="${r['Notas'] || ''}">${truncate(r['Notas'], 40)}</td>
@@ -827,6 +868,7 @@ function renderDynamicKanban(pipeline, records, config) {
       <div class="kanban-card-body" onclick="viewRecord('${type}', decodeURIComponent('${safeId}'))">
         <p><strong>${type === 'tareas' ? 'Proyecto' : type === 'prospectos' ? 'Contacto' : 'Cliente'}:</strong> ${escapeDetailHtml(reference || '—')}</p>
         ${type === 'proyectos' ? `<p><strong>Servicio:</strong> ${escapeDetailHtml(record['Servicio'] || '—')}</p>` : ''}
+        ${type === 'prospectos' ? `<p><strong>Giro:</strong> ${escapeDetailHtml(record['Giro'] || '—')}</p>` : ''}
         ${type === 'tareas' ? `<p><strong>Límite:</strong> ${escapeDetailHtml(record['Fecha límite'] || '—')}</p>` : ''}
         <p title="${escapeDetailHtml(record['Notas'] || record['Comentarios'] || '')}">${escapeDetailHtml(truncate(record['Notas'] || record['Comentarios'], 40))}</p>
       </div>
@@ -1111,6 +1153,12 @@ function formProspecto() {
       <div class="form-group"><label>Nombre *</label><input name="nombre" required></div>
       <div class="form-group"><label>Correo</label><input name="correo" type="email"></div>
       <div class="form-group"><label>Teléfono</label><input name="telefono"></div>
+      <div class="form-group"><label>Giro</label>
+        <select name="giro">
+          <option value="">Seleccionar giro...</option>
+          ${giroOptions()}
+        </select>
+      </div>
       <div class="form-group"><label>Asesor</label>
         <select name="asesor">
           <option value="">Selecciona Asesor...</option>
@@ -1553,6 +1601,7 @@ const DETAIL_FIELD_DEFINITIONS = [
   { label: 'Descripción', keys: ['Descripción', 'Concepto', 'Nombre/Tema'] },
   { label: 'Notas', keys: ['Notas', 'Notas sobre el Cliente', 'Comentarios', 'Evidencia'] },
   { label: 'Prioridad', keys: ['Prioridad'] },
+  { label: 'Giro', keys: ['Giro'] },
   { label: 'Servicio ofrecido', keys: ['Servicio', 'Servicios contratados', 'Tipo de Servicio'] }
 ];
 
@@ -2195,8 +2244,15 @@ async function uploadArchivo(event) {
 
 // ── PIPELINE PROSPECTOS ──────────────────────────────────────────
 async function loadPipelineProspectos() {
-  if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json()).catch(() => []);
-  window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => []);
+  const asesoresRequest = Array.isArray(window.asesoresData)
+    ? Promise.resolve(window.asesoresData)
+    : fetch(`${API}/api/asesores`).then(r => r.json()).catch(() => []);
+  const [asesores, prospectos] = await Promise.all([
+    asesoresRequest,
+    fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => [])
+  ]);
+  window.asesoresData = asesores;
+  window.prospectosData = prospectos;
   const pipeline = await loadPipelineConfig('prospectos');
   if (pipeline) renderDynamicKanban(pipeline, window.prospectosData, PIPELINE_BOARD_CONFIG.prospectos);
 }

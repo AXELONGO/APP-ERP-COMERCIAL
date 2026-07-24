@@ -222,6 +222,7 @@ function openCampanaModal() {
         <span class="badge badge-purple" style="font-size:11px;">${p['ID Prospectos'] || '?'}</span>
         <strong style="font-size:13px;">${p['Nombre del Contacto'] || '—'}</strong>
         <span style="font-size:12px;color:#9ca3af;margin-left:auto;">${p['Teléfono'] || ''}</span>
+        <span style="font-size:12px;color:#9ca3af;">${p['Giro'] || ''}</span>
       </label>
     </li>`
   ).join('');
@@ -274,6 +275,7 @@ async function submitCampana(e) {
       nombre: p['Nombre del Contacto'],
       telefono: p['Teléfono'],
       correo: p['Correo Electrónico'],
+      giro: p['Giro'],
       asesor: p['Asesor'],
       notas: p['Notas'],
     })),
