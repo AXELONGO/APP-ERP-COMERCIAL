@@ -49,8 +49,8 @@ async function getSheets() {
 }
 
 async function getPublicData(sheetName) {
-  const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}`;
-  const res = await fetch(url);
+  const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&cachebust=${Date.now()}`;
+  const res = await fetch(url, { cache: 'no-store' });
   const text = await res.text();
   const jsonString = text.match(/google\.visualization\.Query\.setResponse\(([\s\S\w]+)\);/)[1];
   const data = JSON.parse(jsonString);

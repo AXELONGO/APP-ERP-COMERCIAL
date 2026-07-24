@@ -769,6 +769,7 @@ function bindDynamicBoardDrag(board) {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'Transición no permitida');
+      synchronizeLocalPipelineRecord(dragData, result);
       showToast('Movimiento guardado');
       loadTableroView(currentTablero);
     } catch (error) {
@@ -776,6 +777,19 @@ function bindDynamicBoardDrag(board) {
       loadTableroView(currentTablero);
     }
   });
+}
+
+function synchronizeLocalPipelineRecord(dragData, result) {
+  const config = PIPELINE_BOARD_CONFIG[dragData?.type];
+  const pipeline = window.pipelineConfigs[dragData?.type];
+  const stageValue = result?.stage?.legacy_value || result?.stage?.stage_key;
+  if (!config || !pipeline || !stageValue) return;
+  const records = window[config.dataKey] || [];
+  const record = records.find(item => item[config.idField] === dragData.id);
+  if (record) {
+    record[config.stageField] = stageValue;
+    record.pipeline_state = result.state || null;
+  }
 }
 
 function renderDynamicKanban(pipeline, records, config) {
