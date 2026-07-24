@@ -38,15 +38,20 @@ process.on('unhandledRejection', (reason) => {
 const originalDateNow = Date.now;
 let timeOffset = 0;
 (async function syncClock() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1500);
   try {
-    const res = await fetch('http://worldtimeapi.org/api/timezone/Etc/UTC');
+    const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const realTime = new Date(data.utc_datetime).getTime();
     timeOffset = realTime - originalDateNow();
     Date.now = () => originalDateNow() + timeOffset;
     console.log(`\n[Seguridad] Reloj interno sincronizado. Offset: ${timeOffset}ms\n`);
   } catch (err) {
-    console.error('[Seguridad] Fallo al sincronizar reloj:', err.message);
+    console.warn('[Seguridad] Reloj externo no disponible; se usa el reloj del sistema.');
+  } finally {
+    clearTimeout(timeout);
   }
 })();
 
@@ -155,7 +160,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
 app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
-async function startServer() {
+async function runStartupMigrations() {
   const hasGoogleCredentials = Boolean(process.env.GOOGLE_CREDENTIALS || fs.existsSync(path.join(__dirname, '../../credentials.json')));
   if (process.env.PIPELINES_AUTO_MIGRATE !== 'false' && hasGoogleCredentials) {
     try {
@@ -168,9 +173,11 @@ async function startServer() {
   } else {
     console.log('[Pipeline] Migración automática pendiente: no hay credenciales de Google disponibles.');
   }
-  app.listen(PORT, () => console.log(`\n🚀 ERP LUMARK → http://localhost:${PORT}\n`));
 }
 
-startServer();
+app.listen(PORT, () => {
+  console.log(`\n🚀 ERP LUMARK → http://localhost:${PORT}\n`);
+  runStartupMigrations();
+});
 
 module.exports = app;
