@@ -154,29 +154,47 @@ function getRecordIdFromPath(path) {
 function getTriggerSource(method, path, buttonActionId) {
   if (buttonActionId) return 'button';
   if (String(path || '').includes('/transition')) return 'transition';
+  if (/\/api\/correos\/(send|draft)/.test(String(path || ''))) return 'button';
   if (String(path || '').includes('/from-calendly')) return 'process';
   return { POST: 'create', PUT: 'update', PATCH: 'update', DELETE: 'delete' }[method] || method.toLowerCase();
 }
 
+function compactMovementValue(value, key = '', depth = 0) {
+  if (depth > 3) return '[TRUNCATED]';
+  if (typeof value === 'string') {
+    if (/html_body|text_body|template|content/i.test(key)) return `[OMITTED_${key.toUpperCase()}]`;
+    return value.length > 2000 ? `${value.slice(0, 2000)}...[TRUNCATED]` : value;
+  }
+  if (Array.isArray(value)) return value.slice(0, 100).map(item => compactMovementValue(item, key, depth + 1));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([childKey, childValue]) => [childKey, compactMovementValue(childValue, childKey, depth + 1)]));
+  }
+  return value;
+}
+
 function reportModification({ method, path, status, body, response, recordId, buttonActionId, userContext, sourceUrl }) {
   const module = getModuleFromPath(path, body);
-  const resolvedRecordId = recordId || getRecordIdFromPath(path) || response?.id || response?.campaign_id || response?.record_id || body?.record_id || body?.id || null;
+  const resolvedRecordId = recordId || response?.id || response?.campaign_id || response?.record_id || response?.state?.record_id || body?.record_id || body?.id || getRecordIdFromPath(path) || null;
   const resolvedButtonActionId = buttonActionId || body?.button_action_id || null;
   const occurredAt = new Date().toISOString();
+  const compactRequest = compactMovementValue(body || {});
+  const compactResponse = compactMovementValue(response || {});
+  const eventType = getMovementEventType(module, method, path);
 
   return sendInformationEvent({
     category: 'movimiento',
     module,
-    event_type: getMovementEventType(module, method, path),
+    event_type: eventType,
     trigger_source: getTriggerSource(method, path, resolvedButtonActionId),
     record_id: resolvedRecordId,
     button_action_id: resolvedButtonActionId,
     occurred_at: occurredAt,
     source_url: sourceUrl || null,
     user_context: userContext || null,
+    dedup_key: createDedupKey(eventType, module, resolvedRecordId, status),
     data: {
-      request: body || {},
-      response: response || null,
+      request: compactRequest,
+      response: compactResponse,
       path,
       status
     }
