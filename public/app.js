@@ -1598,11 +1598,20 @@ const DETAIL_FIELD_DEFINITIONS = [
   { label: 'Nombre del proyecto', keys: ['Nombre del Proyecto'] },
   { label: 'Nombre del prospecto', keys: ['Nombre del Contacto'] },
   { label: 'Nombre del cliente', keys: ['Nombre del Cliente'] },
+  { label: 'Empresa', keys: ['Empresa o Razón Social', 'Empresa'] },
+  { label: 'Correo', keys: ['Correo Electrónico', 'Correo'] },
+  { label: 'Teléfono', keys: ['Teléfono', 'Teléfono Principal'] },
+  { label: 'Giro', keys: ['Giro'] },
+  { label: 'Asesor', keys: ['Asesor', 'Responsable'] },
+  { label: 'Medio de contacto', keys: ['Medio de contacto'] },
+  { label: 'Estado', keys: ['Estado', 'Estatus'] },
+  { label: 'Etapa', keys: ['Etapa', 'Etapa actual'] },
+  { label: 'Prioridad', keys: ['Prioridad'] },
+  { label: 'Servicio ofrecido', keys: ['Servicio', 'Servicios contratados', 'Tipo de Servicio'] },
+  { label: 'Valor mensual', keys: ['Valor mensual'] },
   { label: 'Descripción', keys: ['Descripción', 'Concepto', 'Nombre/Tema'] },
   { label: 'Notas', keys: ['Notas', 'Notas sobre el Cliente', 'Comentarios', 'Evidencia'] },
-  { label: 'Prioridad', keys: ['Prioridad'] },
-  { label: 'Giro', keys: ['Giro'] },
-  { label: 'Servicio ofrecido', keys: ['Servicio', 'Servicios contratados', 'Tipo de Servicio'] }
+  { label: 'Fecha de registro', keys: ['Fecha de Registro', 'Fecha'] }
 ];
 
 function escapeDetailHtml(value) {
@@ -1612,7 +1621,8 @@ function escapeDetailHtml(value) {
 function getDetailFields(record) {
   return DETAIL_FIELD_DEFINITIONS.map(definition => {
     const key = definition.keys.find(candidate => Object.prototype.hasOwnProperty.call(record, candidate));
-    return key ? { ...definition, key, value: record[key] || '' } : null;
+    const value = key ? String(record[key] ?? '').trim() : '';
+    return key && value ? { ...definition, key, value } : null;
   }).filter(Boolean);
 }
 
@@ -1645,8 +1655,9 @@ function viewRecord(endpoint, id) {
   const fieldHtml = fields.map((field, index) => {
     const value = String(field.value || '').trim();
     const encoded = [endpoint, id, field.key, value].map(encodeURIComponent);
+    const isWide = ['Descripción', 'Notas'].includes(field.label);
     const isNotes = field.label === 'Notas';
-    return `<article class="detail-field ${isNotes ? 'detail-field-notes' : ''} ${index === 0 ? 'detail-field-primary' : ''}">
+    return `<article class="detail-field ${isWide ? 'detail-field-wide' : ''} ${isNotes ? 'detail-field-notes' : ''} ${index === 0 ? 'detail-field-primary' : ''}">
       <div class="detail-field-label">${field.label}</div>
       <div class="detail-field-value ${value ? '' : 'detail-field-empty'}" onclick="makeEditable(this, ...decodeURIComponent('${encoded.join('|')}').split('|'))">
         ${escapeDetailHtml(value || 'Sin información')}

@@ -1419,33 +1419,34 @@ tbody tr:hover {
 }
 
 .modal.modal-record-detail {
-  max-width: 760px;
-  max-height: min(680px, calc(100vh - 32px));
+  width: min(900px, calc(100vw - 32px));
+  max-width: 900px;
+  max-height: min(760px, calc(100vh - 32px));
 }
 
 .modal-record-detail .modal-body {
-  padding: 16px 20px 18px;
+  padding: 14px 18px 16px;
 }
 
 .record-detail-hero {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 0 14px;
+  gap: 12px;
+  padding: 0 0 10px;
   border-bottom: 1px solid #e8edf5;
 }
 
 .record-detail-icon {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
-  border-radius: 14px;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 12px;
   color: #fff;
   background: linear-gradient(135deg, #2563eb, #7c3aed);
   box-shadow: 0 8px 18px rgba(37, 99, 235, .2);
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .record-detail-kicker {
@@ -1466,19 +1467,19 @@ tbody tr:hover {
 
 .record-details-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  padding-top: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 10px;
 }
 
 .detail-field {
-  min-height: 88px;
-  padding: 13px 15px;
+  min-height: 0;
+  padding: 10px 12px;
   overflow: hidden;
   border: 1px solid #e4eaf3;
-  border-radius: 16px;
+  border-radius: 12px;
   background: linear-gradient(145deg, #fff, #f8faff);
-  box-shadow: 0 7px 20px rgba(29, 45, 80, .06);
+  box-shadow: 0 4px 12px rgba(29, 45, 80, .05);
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 
@@ -1493,13 +1494,12 @@ tbody tr:hover {
   background: linear-gradient(135deg, #eef4ff, #fbfaff);
 }
 
-.detail-field-notes {
+.detail-field-wide {
   grid-column: 1 / -1;
-  min-height: 92px;
 }
 
 .detail-field-label {
-  margin-bottom: 7px;
+  margin-bottom: 4px;
   color: #64748b;
   font-size: 11px;
   font-weight: 800;
@@ -1508,10 +1508,10 @@ tbody tr:hover {
 }
 
 .detail-field-value {
-  min-height: 25px;
+  min-height: 20px;
   color: #172033;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
   white-space: pre-wrap;
@@ -1522,6 +1522,11 @@ tbody tr:hover {
   color: #475569;
   font-size: 14px;
   font-weight: 500;
+}
+
+.detail-field-wide .detail-field-value {
+  max-height: 130px;
+  overflow-y: auto;
 }
 
 .detail-field-empty {
@@ -1539,7 +1544,7 @@ tbody tr:hover {
 .record-detail-actions {
   display: flex;
   justify-content: flex-end;
-  padding-top: 14px;
+  padding-top: 10px;
 }
 
 .detail-delete-button {
@@ -1548,21 +1553,27 @@ tbody tr:hover {
   background: #fff7f7;
 }
 
+@media (max-width: 768px) {
+  .modal-record-detail .record-details-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 640px) {
   .modal.modal-record-detail {
     max-height: 96vh;
   }
 
   .modal-record-detail .record-details-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .record-details-grid {
     grid-template-columns: 1fr;
   }
 
-  .modal-record-detail .detail-field-notes {
-    grid-column: 1 / -1;
+  .modal-record-detail .detail-field-wide {
+    grid-column: 1;
+  }
+
+  .modal-record-detail .modal-body {
+    padding: 12px;
   }
 
   .record-detail-hero h2 {
