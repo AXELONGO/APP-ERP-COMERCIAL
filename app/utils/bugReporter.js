@@ -121,8 +121,9 @@ function reportBug({ level, message, error, context, eventType = 'system.server_
   }, { channel: 'bugs' });
 }
 
-function getModuleFromPath(path) {
+function getModuleFromPath(path, body) {
   const endpoint = String(path || '').split('?')[0].split('/').filter(Boolean)[1] || 'sistema';
+  if (endpoint === 'pipelines' && body?.record_type) return String(body.record_type);
   return {
     pipeline: 'proyectos',
     pipeline_de_proyecto: 'proyectos',
@@ -132,6 +133,7 @@ function getModuleFromPath(path) {
 
 function getMovementEventType(module, method, path) {
   const normalizedPath = String(path || '').split('?')[0];
+  if (normalizedPath.includes('/transition')) return `${module}.stage_changed`;
   if (module === 'correos' && normalizedPath.endsWith('/send')) return 'correos.sent';
   if (module === 'correos' && normalizedPath.endsWith('/draft')) return 'correos.draft_created';
   const action = { POST: 'created', PUT: 'updated', PATCH: 'updated', DELETE: 'deleted' }[method] || method.toLowerCase();
@@ -151,12 +153,13 @@ function getRecordIdFromPath(path) {
 
 function getTriggerSource(method, path, buttonActionId) {
   if (buttonActionId) return 'button';
+  if (String(path || '').includes('/transition')) return 'transition';
   if (String(path || '').includes('/from-calendly')) return 'process';
   return { POST: 'create', PUT: 'update', PATCH: 'update', DELETE: 'delete' }[method] || method.toLowerCase();
 }
 
 function reportModification({ method, path, status, body, response, recordId, buttonActionId, userContext, sourceUrl }) {
-  const module = getModuleFromPath(path);
+  const module = getModuleFromPath(path, body);
   const resolvedRecordId = recordId || getRecordIdFromPath(path) || response?.id || response?.campaign_id || response?.record_id || body?.record_id || body?.id || null;
   const resolvedButtonActionId = buttonActionId || body?.button_action_id || null;
   const occurredAt = new Date().toISOString();

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
@@ -14,6 +15,8 @@ const { registerCotizacionesRoutes } = require('./routes/cotizaciones');
 const { registerArchivosRoutes } = require('./routes/archivos');
 const { registerCalendlyRoutes } = require('./routes/calendly');
 const { registerCorreosRoutes } = require('./routes/correos');
+const { registerPipelineRoutes } = require('./routes/pipelines');
+const { seedLegacyPipelines } = require('./services/pipelineService');
 const { getAuthUrl, saveTokenFromCode } = require('./config/drive');
 
 process.on('uncaughtException', (err) => {
@@ -122,6 +125,7 @@ registerCotizacionesRoutes(app);
 registerArchivosRoutes(app);
 registerCalendlyRoutes(app);
 registerCorreosRoutes(app);
+registerPipelineRoutes(app);
 
 // ── Google Drive OAuth ──────────────────────────────────────
 app.get('/api/auth/google', (req, res) => {
@@ -150,6 +154,21 @@ app.get('/api/auth/google/callback', async (req, res) => {
 app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
-app.listen(PORT, () => console.log(`\n🚀 ERP LUMARK → http://localhost:${PORT}\n`));
+async function startServer() {
+  const hasGoogleCredentials = Boolean(process.env.GOOGLE_CREDENTIALS || fs.existsSync(path.join(__dirname, '../../credentials.json')));
+  if (process.env.PIPELINES_AUTO_MIGRATE !== 'false' && hasGoogleCredentials) {
+    try {
+      const definitions = await seedLegacyPipelines();
+      console.log(`[Pipeline] Configuración disponible: ${definitions.length} pipelines.`);
+    } catch (error) {
+      console.error('[Pipeline] Migración automática omitida:', error.message);
+    }
+  } else {
+    console.log('[Pipeline] Migración automática pendiente: no hay credenciales de Google disponibles.');
+  }
+  app.listen(PORT, () => console.log(`\n🚀 ERP LUMARK → http://localhost:${PORT}\n`));
+}
+
+startServer();
 
 module.exports = app;

@@ -1,5 +1,6 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const { getPublicData } = require('../config/sheets');
+const { getPipeline } = require('../services/pipelineService');
 
 function registerDashboard(app) {
 
@@ -12,6 +13,7 @@ function registerDashboard(app) {
       getPublicData('Prospectos'),
       getPublicData('Citas')
     ]);
+    const projectPipeline = await getPipeline('proyectos').catch(() => null);
 
     const clientesActivos = clientes.filter(c => c['Estado'] === 'Activo').length;
     const proyectosActivos = proyectos.filter(p => p['Estado del Proyecto'] === 'Activo').length;
@@ -20,14 +22,13 @@ function registerDashboard(app) {
     const tareasEnProceso = tareas.filter(t => t['Estado'] === 'En Proceso').length;
     const ingresosMensuales = clientes.reduce((s, c) => s + (parseFloat(c['Valor mensual']) || 0), 0);
 
-    const avancePorProyecto = {};
-    pipeline.forEach(p => {
-      const pid = p['ID Proyecto'];
-      if (!pid) return;
-      if (!avancePorProyecto[pid]) avancePorProyecto[pid] = 0;
-      if (p['Estado'] === 'Completado') avancePorProyecto[pid]++;
+    const stages = (projectPipeline?.stages || []).filter(stage => stage.active).sort((a, b) => a.order_index - b.order_index);
+    const stageIndex = value => stages.findIndex(stage => [stage.legacy_value, stage.stage_key, stage.name].map(String).includes(String(value)));
+    const avances = proyectos.map(project => {
+      const index = stageIndex(project['Etapa actual']);
+      if (index < 0) return 0;
+      return stages.length <= 1 ? 100 : (index / (stages.length - 1)) * 100;
     });
-    const avances = Object.values(avancePorProyecto).map(n => (n / 6) * 100);
     const avancePromedio = avances.length ? Math.round(avances.reduce((a, b) => a + b, 0) / avances.length) : 0;
 
     const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -66,6 +67,7 @@ function registerDashboard(app) {
       ingresosMensuales, avancePromedio,
       ingresosPorMes, serviciosCount, etapasCount, proximasCitas,
       totalClientes: clientes.length, totalProyectos: proyectos.length,
+      pipelineConfig: projectPipeline || null,
     });
   }));
 

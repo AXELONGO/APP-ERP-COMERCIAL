@@ -331,82 +331,24 @@
         <option value="pipeline-prospectos">Pipeline Prospectos</option>
         <option value="tareas">Tareas</option>
       </select>
+      <button class="btn btn-outline" type="button" onclick="openPipelineManager()"><i class="ph ph-sliders-horizontal"></i> Configurar pipeline</button>
       <button class="btn btn-primary" type="button" onclick="openTareaModal()"><i class="ph ph-plus"></i> Nueva tarea</button>
       <input type="text" class="search-input" id="tableroSearch" placeholder="Buscar..." oninput="filterTablero(this.value)" style="flex:1; min-width:150px;">
     </div>
 
     <!-- Pipeline Proyectos -->
     <div class="tablero-panel" id="tablero-pipeline">
-      <div class="kanban-board" id="kanban-pipeline">
-        <div class="kanban-col" data-status="1">
-          <h3 class="kanban-col-title">1 → Activación <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="2">
-          <h3 class="kanban-col-title">2 → Diagnóstico <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="3">
-          <h3 class="kanban-col-title">3 → Calendario de Cont. <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="4">
-          <h3 class="kanban-col-title">4 → Creación Cont. <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="5">
-          <h3 class="kanban-col-title">5 → Campaña <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="6">
-          <h3 class="kanban-col-title">6 → Reporte de Res. <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="7">
-          <h3 class="kanban-col-title">7 → Renovación <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-      </div>
+      <div class="kanban-board" id="kanban-pipeline"></div>
     </div>
 
     <!-- Pipeline Prospectos -->
     <div class="tablero-panel hidden" id="tablero-pipeline-prospectos">
-      <div class="kanban-board" id="kanban-pipeline-prospectos">
-        <div class="kanban-col" data-status="Nuevo">
-          <h3 class="kanban-col-title">🟢 Nuevo <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="En Proceso">
-          <h3 class="kanban-col-title">🟡 En Proceso <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="Cerrado">
-          <h3 class="kanban-col-title">🔵 Cerrado <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="Perdido">
-          <h3 class="kanban-col-title">🔴 Perdido <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-      </div>
+      <div class="kanban-board" id="kanban-pipeline-prospectos"></div>
     </div>
 
     <!-- Tareas -->
     <div class="tablero-panel hidden" id="tablero-tareas">
-      <div class="kanban-board" id="kanban-tareas">
-        <div class="kanban-col" data-status="Pendiente">
-          <h3 class="kanban-col-title">Pendiente <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="En Proceso">
-          <h3 class="kanban-col-title">En Proceso <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-        <div class="kanban-col" data-status="Terminado">
-          <h3 class="kanban-col-title">Terminado <span class="kanban-count">0</span></h3>
-          <div class="kanban-cards"></div>
-        </div>
-      </div>
+      <div class="kanban-board" id="kanban-tareas"></div>
     </div>
   </section>
 

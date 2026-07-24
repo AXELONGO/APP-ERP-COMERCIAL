@@ -368,7 +368,8 @@ async function submitReporte(e) {
   const estadoActual = p?.['Estado del Proyecto'] || '—';
   const servicio = p?.['Servicio'] || '—';
   const etapa = p?.['Etapa actual'] || '—';
-  const etapaLabel = window.ETAPAS_MAP?.[String(etapa)] || etapa;
+  const configuredStage = window.pipelineConfigs?.proyectos?.stages?.find(stage => [stage.legacy_value, stage.stage_key, stage.name].map(String).includes(String(etapa)));
+  const etapaLabel = configuredStage?.name || window.ETAPAS_MAP?.[String(etapa)] || etapa;
 
   // ── Payload enfocado al cliente ──────────────────────────────────
   // Solo se envía lo que es relevante para el cliente:

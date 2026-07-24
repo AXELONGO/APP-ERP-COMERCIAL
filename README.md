@@ -105,3 +105,13 @@ Si aún ves el error en tu computadora, significa que la hora interna de **Docke
 1. Reinicia Docker Desktop completamente (Click en ícono -> Quit Docker Desktop).
 2. Vuelve a abrirlo.
 3. Ejecuta `docker compose up -d` para volver a iniciar.
+
+### Pipelines dinámicos
+
+La configuración de pipelines se almacena en hojas independientes para pipelines, etapas, pasos, transiciones, condiciones, estados, versiones y auditoría. Para crear las hojas y migrar los pipelines legacy de proyectos, prospectos y tareas ejecuta:
+
+```bash
+npm run migrate:pipelines
+```
+
+La aplicación conserva `Etapa actual`, `Etapa` y `Estado` para compatibilidad. La edición se realiza desde `Tableros > Configurar pipeline` o mediante `/api/pipelines`.

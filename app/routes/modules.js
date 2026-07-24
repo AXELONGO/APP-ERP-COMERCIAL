@@ -36,7 +36,7 @@ function registerModules(app) {
     e[12] || '',
     e[13] || '',
     d.etapa !== undefined ? d.etapa : (e[14] || 'Nuevo')
-  ]);
+  ], undefined, { pipelineKey: 'prospectos', recordType: 'prospectos', stageField: 'etapa' });
 
   crudRoutes(app, 'Proyectos', 'A:M', (d, e = [], f = [], rowNum) => [
     e[0] || '',
@@ -52,7 +52,7 @@ function registerModules(app) {
     d.prioridad !== undefined ? d.prioridad : (e[10] || 'Media'),
     d.riesgo !== undefined ? d.riesgo : (e[11] || 'Bajo'),
     d.fechaRegistro !== undefined ? d.fechaRegistro : (e[12] || new Date().toISOString().split('T')[0])
-  ]);
+  ], undefined, { pipelineKey: 'proyectos', recordType: 'proyectos', stageField: 'etapa' });
 
   crudRoutes(app, 'Pipeline de Proyecto', 'A:K', (d, e = []) => [
     e[0] || '',
@@ -82,7 +82,7 @@ function registerModules(app) {
     d.evidencia !== undefined ? d.evidencia : (e[10] || ''),
     d.comentarios !== undefined ? d.comentarios : (e[11] || ''),
     d.fechaRegistro !== undefined ? d.fechaRegistro : (e[12] || new Date().toISOString().split('T')[0])
-  ]);
+  ], undefined, { pipelineKey: 'tareas', recordType: 'tareas', stageField: 'estado' });
 
   crudRoutes(app, 'Citas', 'A:N', (d, e = []) => [
     e[0] || '',

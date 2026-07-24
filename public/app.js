@@ -132,7 +132,8 @@ const ETAPAS_MAP = {
 };
 
 function formatEtapa(val) {
-  return ETAPAS_MAP[String(val)] || val || '—';
+  const stage = window.pipelineConfigs?.proyectos?.stages?.find(item => [item.legacy_value, item.stage_key, item.name].map(String).includes(String(val)));
+  return stage?.name || ETAPAS_MAP[String(val)] || val || '—';
 }
 
 // ── NAV ──────────────────────────────────────────────────────────
@@ -421,6 +422,7 @@ async function loadProyectos() {
     try { window.citasData = await fetch(`${API}/api/citas`).then(r => r.json()); } catch(e) {}
   }
   window.proyectosData = await fetch(`${API}/api/proyectos`).then(r => r.json());
+  const projectPipeline = await loadPipelineConfig('proyectos');
   const data = filterByDate(window.proyectosData);
 
   // ── Botón de Reporte movido a index.html estático ────────────
@@ -479,16 +481,10 @@ async function loadProyectos() {
       </td>
       <td>
         <select class="pill-select pill-etapa" onclick="event.stopPropagation()" onchange="updateProyectoSelect('${r['ID Proyectos']}','etapa','Etapa actual',this.value)">
-          <option value="1" ${String(r['Etapa actual']) === '1' ? 'selected' : ''}>1 → Activación</option>
-          <option value="2" ${String(r['Etapa actual']) === '2' ? 'selected' : ''}>2 → Diagnóstico</option>
-          <option value="3" ${String(r['Etapa actual']) === '3' ? 'selected' : ''}>3 → Calendario</option>
-          <option value="4" ${String(r['Etapa actual']) === '4' ? 'selected' : ''}>4 → Contenido</option>
-          <option value="5" ${String(r['Etapa actual']) === '5' ? 'selected' : ''}>5 → Campaña</option>
-          <option value="6" ${String(r['Etapa actual']) === '6' ? 'selected' : ''}>6 → Reporte</option>
-          <option value="7" ${String(r['Etapa actual']) === '7' ? 'selected' : ''}>↺ Renovación</option>
+          ${pipelineStageOptions('proyectos', r['Etapa actual'])}
         </select>
       </td>
-      <td><div style="font-weight:700;color:#3b82f6;">${r['% Avance'] || '0%'}</div></td>
+       <td><div style="font-weight:700;color:#3b82f6;">${pipelineProgress(projectPipeline, r['Etapa actual'])}%</div></td>
       <td>
         <select class="pill-select ${prioClase}" onclick="event.stopPropagation()" onchange="updateProyectoSelect('${r['ID Proyectos']}','prioridad','Prioridad',this.value); this.className='pill-select '+({'Alta':'pill-prioridad-alta','Media':'pill-prioridad-media','Baja':'pill-prioridad-baja'}[this.value]||'pill-prioridad-media')">
           <option value="Alta"  ${r['Prioridad'] === 'Alta'  ? 'selected' : ''}>Alta</option>
@@ -509,16 +505,16 @@ async function loadProyectos() {
 
 async function updateProyectoSelect(id, payloadKey, memKey, val) {
   try {
-    const res = await fetch(`${API}/api/proyectos/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [payloadKey]: val })
-    });
+    const record = window.proyectosData.find(r => Object.values(r).includes(id));
+    const pipeline = window.pipelineConfigs.proyectos;
+    const targetStage = payloadKey === 'etapa' ? pipelineStageForValue(pipeline, val) : null;
+    const res = payloadKey === 'etapa' && targetStage
+      ? await fetch(`${API}/api/pipelines/proyectos/transition`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Source': 'project_table' }, body: JSON.stringify({ record_type: 'proyectos', record_id: id, to_stage_id: targetStage.stage_id }) })
+      : await fetch(`${API}/api/proyectos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [payloadKey]: val }) });
     if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || e.error || `Error al actualizar ${payloadKey}`); }
     showToast('Actualizado correctamente');
     
     // Update memory
-    const record = window.proyectosData.find(r => Object.values(r).includes(id));
     if (record) record[memKey] = val;
 
     loadProyectos(); // re-render table
@@ -683,90 +679,151 @@ function downloadProjectReportPDF(report) {
 
 // ── PIPELINE ─────────────────────────────────────────────────────
 window.pipelineData = [];
+window.pipelineConfigs = {};
+
+const PIPELINE_BOARD_CONFIG = {
+  proyectos: { boardId: 'kanban-pipeline', recordType: 'proyectos', dataKey: 'pipelineData', idField: 'ID Proyectos', stageField: 'Etapa actual' },
+  prospectos: { boardId: 'kanban-pipeline-prospectos', recordType: 'prospectos', dataKey: 'prospectosData', idField: 'ID Prospectos', stageField: 'Etapa' },
+  tareas: { boardId: 'kanban-tareas', recordType: 'tareas', dataKey: 'tareasData', idField: 'ID Tarea', stageField: 'Estado' }
+};
+
+function legacyPipelineFallback(key) {
+  const definitions = {
+    proyectos: { name: 'Pipeline de proyectos', values: [['1', 'Activación'], ['2', 'Diagnóstico'], ['3', 'Calendario de Contenido'], ['4', 'Creación de Contenido'], ['5', 'Campaña'], ['6', 'Reporte de Resultados'], ['7', 'Renovación']] },
+    prospectos: { name: 'Pipeline de prospectos', values: [['Nuevo', 'Nuevo'], ['En Proceso', 'En Proceso'], ['Cerrado', 'Cerrado'], ['Perdido', 'Perdido'], ['Convertido', 'Convertido']] },
+    tareas: { name: 'Pipeline de tareas', values: [['Pendiente', 'Pendiente'], ['En Proceso', 'En Proceso'], ['Terminado', 'Terminado']] }
+  };
+  const source = definitions[key] || definitions.proyectos;
+  const stages = source.values.map(([legacy_value, name], index) => ({ stage_id: `STG-${key.toUpperCase()}-${index + 1}`, pipeline_id: `PIPE-${key.toUpperCase()}`, stage_key: legacy_value.toLowerCase().replace(/[^a-z0-9]+/g, '_'), name, order_index: index, active: true, is_initial: index === 0, is_terminal: index === source.values.length - 1, legacy_value, conditions: [], actions: [], steps: [] }));
+  return { pipeline_id: `PIPE-${key.toUpperCase()}`, key, name: source.name, entity_type: key, version: 1, status: 'published', active: true, stages, transitions: stages.flatMap(from => stages.filter(to => to.stage_id !== from.stage_id).map(to => ({ from_stage_id: from.stage_id, to_stage_id: to.stage_id, active: true }))) };
+}
+
+async function loadPipelineConfig(key) {
+  if (window.pipelineConfigs[key]) return window.pipelineConfigs[key];
+  try {
+    const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(key)}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const pipeline = await response.json();
+    window.pipelineConfigs[key] = pipeline;
+    return pipeline;
+  } catch (error) {
+    console.warn(`[Pipeline] Usando configuración local para ${key}:`, error.message);
+    const fallback = legacyPipelineFallback(key);
+    window.pipelineConfigs[key] = fallback;
+    return fallback;
+  }
+}
+
+function pipelineStageForValue(pipeline, value) {
+  const stages = (pipeline?.stages || []).filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index);
+  return stages.find(stage => [stage.legacy_value, stage.stage_key, stage.name].map(String).includes(String(value))) || stages.find(stage => stage.is_initial) || stages[0] || null;
+}
+
+function renderPipelineColumns(board, pipeline) {
+  if (!board) return;
+  const stages = (pipeline?.stages || []).filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index);
+  board.dataset.pipelineKey = pipeline?.key || '';
+  board.innerHTML = stages.map(stage => `
+    <div class="kanban-col" data-status="${escapeDetailHtml(stage.stage_id)}" data-stage-id="${escapeDetailHtml(stage.stage_id)}" style="--pipeline-stage-color:${escapeDetailHtml(stage.color || '#7c3aed')}">
+      <h3 class="kanban-col-title"><span class="pipeline-stage-dot"></span>${escapeDetailHtml(stage.name)} <span class="kanban-count">0</span></h3>
+      <div class="kanban-cards"></div>
+    </div>`).join('');
+  bindDynamicBoardDrag(board);
+}
+
+function bindDynamicBoardDrag(board) {
+  if (!board || board.dataset.dragBound === 'true') return;
+  board.dataset.dragBound = 'true';
+  board.addEventListener('dragover', event => {
+    const column = event.target.closest('.kanban-col');
+    if (!column || !board.contains(column)) return;
+    event.preventDefault();
+    column.style.background = '#eef2ff';
+  });
+  board.addEventListener('dragleave', event => {
+    const column = event.target.closest('.kanban-col');
+    if (column) column.style.background = '';
+  });
+  board.addEventListener('drop', async event => {
+    event.preventDefault();
+    const column = event.target.closest('.kanban-col');
+    if (!column) return;
+    column.style.background = '';
+    let dragData;
+    try { dragData = JSON.parse(event.dataTransfer.getData('text/plain')); } catch (_) { return; }
+    const pipelineKey = board.dataset.pipelineKey;
+    if (!pipelineKey || !dragData?.id || !column.dataset.stageId) return;
+    try {
+      const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(pipelineKey)}/transition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Source': 'kanban_drag' },
+        body: JSON.stringify({ record_type: dragData.type, record_id: dragData.id, to_stage_id: column.dataset.stageId })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Transición no permitida');
+      showToast('Movimiento guardado');
+      loadTableroView(currentTablero);
+    } catch (error) {
+      showToast(error.message, true);
+      loadTableroView(currentTablero);
+    }
+  });
+}
+
+function renderDynamicKanban(pipeline, records, config) {
+  const board = document.getElementById(config.boardId);
+  if (!board) return;
+  renderPipelineColumns(board, pipeline);
+  const data = filterByDate(records || []);
+  data.forEach(record => {
+    const id = record[config.idField] || '';
+    const stage = pipelineStageForValue(pipeline, record[config.stageField]);
+    const targetColumn = [...board.querySelectorAll('.kanban-col')].find(item => item.dataset.stageId === stage?.stage_id);
+    const column = targetColumn?.querySelector('.kanban-cards');
+    if (!column) return;
+    const card = document.createElement('div');
+    card.className = 'kanban-card';
+    card.draggable = true;
+    card.dataset.id = id;
+    const safeId = encodeURIComponent(id);
+    const type = config.recordType;
+    card.addEventListener('dragstart', event => {
+      event.dataTransfer.setData('text/plain', JSON.stringify({ id, type, pipeline_id: pipeline.pipeline_id }));
+      card.style.opacity = '0.5';
+    });
+    card.addEventListener('dragend', () => { card.style.opacity = '1'; });
+
+    const title = type === 'proyectos' ? record['Nombre del Proyecto'] : type === 'prospectos' ? record['Nombre del Contacto'] : record['Tarea'];
+    const reference = type === 'proyectos' ? record['Cliente Relacionado'] : type === 'prospectos' ? record['Correo Electrónico'] : record['ID Proyecto'];
+    const badge = type === 'tareas' ? priorityBadge(record['Prioridad']) : `<span class="badge badge-purple">${escapeDetailHtml(id || '—')}</span>`;
+    card.innerHTML = `
+      <div class="kanban-card-header" onclick="viewRecord('${type}', decodeURIComponent('${safeId}'))">
+        <input type="checkbox" class="row-checkbox" value="${escapeDetailHtml(id)}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)">
+        ${badge}<span class="kanban-card-date">${escapeDetailHtml(record['Fecha de Registro'] || record['Fecha límite'] || '')}</span>
+      </div>
+      <div class="kanban-card-title" onclick="viewRecord('${type}', decodeURIComponent('${safeId}'))">${escapeDetailHtml(title || '—')}</div>
+      <div class="kanban-card-body" onclick="viewRecord('${type}', decodeURIComponent('${safeId}'))">
+        <p><strong>${type === 'tareas' ? 'Proyecto' : type === 'prospectos' ? 'Contacto' : 'Cliente'}:</strong> ${escapeDetailHtml(reference || '—')}</p>
+        ${type === 'proyectos' ? `<p><strong>Servicio:</strong> ${escapeDetailHtml(record['Servicio'] || '—')}</p>` : ''}
+        ${type === 'tareas' ? `<p><strong>Límite:</strong> ${escapeDetailHtml(record['Fecha límite'] || '—')}</p>` : ''}
+        <p title="${escapeDetailHtml(record['Notas'] || record['Comentarios'] || '')}">${escapeDetailHtml(truncate(record['Notas'] || record['Comentarios'], 40))}</p>
+      </div>
+      <div class="kanban-card-footer"><span class="kanban-card-resp">${escapeDetailHtml(type === 'proyectos' ? `Avance: ${pipelineProgress(pipeline, record[config.stageField])}%` : (record['Responsable'] || record['Asesor'] || ''))}</span><span class="badge badge-blue">${escapeDetailHtml(stage?.name || record[config.stageField] || '—')}</span></div>`;
+    column.appendChild(card);
+  });
+  board.querySelectorAll('.kanban-col').forEach(column => {
+    column.querySelector('.kanban-count').textContent = column.querySelectorAll('.kanban-card').length;
+  });
+}
+
 async function loadPipeline() {
   if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json());
   if (!window.tareasData || window.tareasData.length === 0) {
     try { window.tareasData = await fetch(`${API}/api/tareas`).then(r => r.json()); } catch(e) {}
   }
   window.pipelineData = await fetch(`${API}/api/proyectos`).then(r => r.json());
-  const data = filterByDate(window.pipelineData);
-  const board = document.getElementById('kanban-pipeline');
-  
-  board.querySelectorAll('.kanban-cards').forEach(el => el.innerHTML = '');
-  board.querySelectorAll('.kanban-count').forEach(el => el.textContent = '0');
-
-  data.forEach(r => {
-    // Determine which column to place the project in, based on Etapa actual
-    const etapa = r['Etapa actual'] || '1'; 
-    const col = board.querySelector(`.kanban-col[data-status="${etapa}"] .kanban-cards`);
-    if (!col) return;
-    
-    const card = document.createElement('div');
-    card.className = 'kanban-card';
-    card.setAttribute('draggable', 'true');
-    card.setAttribute('data-id', r['ID Proyectos']);
-    
-    card.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('text/plain', JSON.stringify({ id: r['ID Proyectos'], type: 'proyectos' }));
-      e.target.style.opacity = '0.5';
-    });
-    card.addEventListener('dragend', e => {
-      e.target.style.opacity = '1';
-    });
-
-    let clientName = r['Cliente Relacionado'] || '—';
-    if (clientName.startsWith('CLI-') && window.clientesData) {
-      const c = window.clientesData.find(x => x['ID Clientes'] === clientName);
-      if (c) clientName = c['Nombre del Cliente'] || clientName;
-    }
-
-    let linkedTasksHtml = '';
-    if (window.tareasData && window.tareasData.length > 0) {
-      const linked = window.tareasData.filter(t => 
-        t['ID Proyecto'] === r['ID Proyectos'] && 
-        (t['Estado'] === 'Pendiente' || t['Estado'] === 'En Proceso')
-      );
-      if (linked.length > 0) {
-        linkedTasksHtml = '<div style="margin-top:12px; padding-top:10px; border-top:1px dashed var(--border);">';
-        linkedTasksHtml += '<div style="font-size:10px; font-weight:700; color:var(--text2); margin-bottom:8px; text-transform:uppercase;">Tareas Activas:</div>';
-        linked.forEach(t => {
-          const badgeClass = t['Estado'] === 'En Proceso' ? 'badge-blue' : 'badge-orange';
-          linkedTasksHtml += `
-            <div style="font-size:11.5px; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
-              <span class="badge ${badgeClass}" style="font-size:9.5px; padding:2px 5px;">${t['ID Tarea']}</span>
-              <span style="color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${t['Tarea'] || ''}">${t['Tarea'] || '—'}</span>
-            </div>
-          `;
-        });
-        linkedTasksHtml += '</div>';
-      }
-    }
-
-    card.innerHTML = `
-      <div class="kanban-card-header" onclick="viewRecord('proyectos', '${r['ID Proyectos']}')">
-        <input type="checkbox" class="row-checkbox" value="${r['ID Proyectos']}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)">
-        <span class="badge badge-purple">${r['ID Proyectos'] || '—'}</span>
-        <span class="kanban-card-date">${r['Próxima reunión'] || 'Sin reunión'}</span>
-      </div>
-      <div class="kanban-card-title" onclick="viewRecord('proyectos', '${r['ID Proyectos']}')">${r['Nombre del Proyecto'] || '—'}</div>
-      <div class="kanban-card-body" onclick="viewRecord('proyectos', '${r['ID Proyectos']}')">
-        <p><strong>Cliente:</strong> ${clientName}</p>
-        <p><strong>Servicio:</strong> ${r['Servicio'] || '—'}</p>
-        <p title="${r['Notas'] || ''}">${truncate(r['Notas'], 30)}</p>
-        ${linkedTasksHtml}
-      </div>
-      <div class="kanban-card-footer">
-        <span class="kanban-card-resp">Avance: ${r['% Avance'] || '0%'}</span>
-        ${pipelineStatusBadge(r['Estado del Proyecto'])}
-      </div>
-    `;
-    col.appendChild(card);
-  });
-
-  board.querySelectorAll('.kanban-col').forEach(col => {
-    const count = col.querySelectorAll('.kanban-card').length;
-    col.querySelector('.kanban-count').textContent = count;
-  });
+  const pipeline = await loadPipelineConfig('proyectos');
+  if (pipeline) renderDynamicKanban(pipeline, window.pipelineData, PIPELINE_BOARD_CONFIG.proyectos);
 }
 
 // ── TAREAS ───────────────────────────────────────────────────────
@@ -774,55 +831,8 @@ window.tareasData = [];
 async function loadTareas() {
   if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json());
   window.tareasData = await fetch(`${API}/api/tareas`).then(r => r.json());
-  const data = filterByDate(window.tareasData);
-  const board = document.getElementById('kanban-tareas');
-  
-  board.querySelectorAll('.kanban-cards').forEach(el => el.innerHTML = '');
-  board.querySelectorAll('.kanban-count').forEach(el => el.textContent = '0');
-
-  data.forEach(r => {
-    const estado = r['Estado'] || 'Pendiente';
-    const col = board.querySelector(`.kanban-col[data-status="${estado}"] .kanban-cards`);
-    if (!col) return;
-
-    const card = document.createElement('div');
-    card.className = 'kanban-card';
-    card.setAttribute('draggable', 'true');
-    card.setAttribute('data-id', r['ID Tarea']);
-    
-    card.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('text/plain', JSON.stringify({ id: r['ID Tarea'], type: 'tareas' }));
-      e.target.style.opacity = '0.5';
-    });
-    card.addEventListener('dragend', e => {
-      e.target.style.opacity = '1';
-    });
-
-    card.innerHTML = `
-      <div class="kanban-card-header" onclick="viewRecord('tareas', '${r['ID Tarea']}')">
-        <input type="checkbox" class="row-checkbox" value="${r['ID Tarea']}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)">
-        <span class="badge badge-orange">${r['ID Tarea'] || '—'}</span>
-        ${priorityBadge(r['Prioridad'])}
-      </div>
-      <div class="kanban-card-title" onclick="viewRecord('tareas', '${r['ID Tarea']}')">${r['Tarea'] || '—'}</div>
-      <div class="kanban-card-body" onclick="viewRecord('tareas', '${r['ID Tarea']}')">
-        <p><strong>Cat:</strong> ${r['Categoría'] || '—'}</p>
-        <p><strong>Proyecto:</strong> ${r['ID Proyecto'] || '—'}</p>
-        <p><strong>Límite:</strong> ${r['Fecha límite'] || '—'}</p>
-        ${r['Comentarios'] ? `<p title="${r['Comentarios']}">${truncate(r['Comentarios'], 40)}</p>` : ''}
-      </div>
-      <div class="kanban-card-footer">
-        <span class="kanban-card-resp">${r['Responsable'] || '—'}</span>
-        ${taskStatusBadge(estado)}
-      </div>
-    `;
-    col.appendChild(card);
-  });
-
-  board.querySelectorAll('.kanban-col').forEach(col => {
-    const count = col.querySelectorAll('.kanban-card').length;
-    col.querySelector('.kanban-count').textContent = count;
-  });
+  const pipeline = await loadPipelineConfig('tareas');
+  if (pipeline) renderDynamicKanban(pipeline, window.tareasData, PIPELINE_BOARD_CONFIG.tareas);
 }
 
 // ── CITAS ────────────────────────────────────────────────────────
@@ -1039,6 +1049,9 @@ async function openModal(title, body) {
         showToast('No se pudieron cargar los prospectos', true);
       }
     }
+    if (['proyectos', 'prospectos', 'tareas'].includes(currentSection) && !window.pipelineConfigs[currentSection]) {
+      await loadPipelineConfig(currentSection);
+    }
     switch(currentSection) {
       case 'clientes': body = formCliente(); break;
       case 'prospectos': body = formProspecto(); break;
@@ -1082,6 +1095,7 @@ function formProspecto() {
           ${generateOptions('asesoresData', 'Nombre del Asesor', 'Nombre del Asesor')}
         </select>
       </div>
+      <div class="form-group"><label>Etapa</label><select name="etapa">${pipelineStageOptions('prospectos')}</select></div>
       <div class="form-group"><label>Medio de Contacto</label>
         <select name="medioDeContacto">
           <option value="">Seleccionar...</option>
@@ -1165,6 +1179,20 @@ function generateOptions(dataStore, idKey, nameKey) {
   return window[dataStore].map(r => `<option value="${r[idKey]}">${r[nameKey]}</option>`).join('');
 }
 
+function pipelineStageOptions(key, selectedValue = '') {
+  const pipeline = window.pipelineConfigs[key];
+  if (pipeline?.stages?.length) {
+    return pipeline.stages.filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index)
+      .map(stage => { const value = stage.legacy_value || stage.stage_key; return `<option value="${escapeDetailHtml(value)}" ${String(value) === String(selectedValue) ? 'selected' : ''}>${escapeDetailHtml(stage.name)}</option>`; }).join('');
+  }
+  const fallback = {
+    proyectos: [['1', '1 -> Activación'], ['2', '2 -> Diagnóstico'], ['3', '3 -> Calendario de Contenido'], ['4', '4 -> Creación de Contenido'], ['5', '5 -> Campaña'], ['6', '6 -> Reporte de Resultados'], ['7', '7 -> Renovación']],
+    prospectos: [['Nuevo', 'Nuevo'], ['En Proceso', 'En Proceso'], ['Cerrado', 'Cerrado'], ['Perdido', 'Perdido']],
+    tareas: [['Pendiente', 'Pendiente'], ['En Proceso', 'En Proceso'], ['Terminado', 'Terminado']]
+  };
+  return (fallback[key] || []).map(([value, label]) => `<option value="${escapeDetailHtml(value)}" ${String(value) === String(selectedValue) ? 'selected' : ''}>${escapeDetailHtml(label)}</option>`).join('');
+}
+
 function formProyecto() {
   return `<form onsubmit="submitForm(event,'proyectos')">
     <div class="form-grid">
@@ -1190,13 +1218,7 @@ function formProyecto() {
         </select></div>
       <div class="form-group"><label><i class="ph-bold ph-arrows-clockwise" style="vertical-align:middle; margin-right:4px;"></i> Etapa Actual del Flujo</label>
         <select name="etapa">
-          <option value="1">1 → Activación</option>
-          <option value="2">2 → Diagnóstico</option>
-          <option value="3">3 → Calendario de Contenido</option>
-          <option value="4">4 → Creación de Contenido</option>
-          <option value="5">5 → Campaña</option>
-          <option value="6">6 → Reporte de Resultados</option>
-          <option value="7"><i class="ph-bold ph-arrows-clockwise" style="vertical-align:middle; margin-right:4px;"></i> Renovación</option>
+          ${pipelineStageOptions('proyectos')}
         </select></div>
       <div class="form-group"><label>Estado del Proyecto</label>
         <select name="estado">
@@ -1284,7 +1306,7 @@ function formTarea() {
       <div class="form-group"><label>Fecha Inicio</label><input name="fechaInicio" type="date"></div>
       <div class="form-group"><label>Fecha Límite</label><input name="fechaLimite" type="date"></div>
       <div class="form-group"><label>Estado</label>
-        <select name="estado"><option>Pendiente</option><option>En Proceso</option><option>Terminado</option></select></div>
+        <select name="estado">${pipelineStageOptions('tareas')}</select></div>
       <div class="form-group full"><label>Comentarios</label><input name="comentarios"></div>
     </div>
     <button type="submit" class="btn btn-primary btn-block">Guardar Tarea</button>
@@ -2153,55 +2175,8 @@ async function uploadArchivo(event) {
 async function loadPipelineProspectos() {
   if (!window.asesoresData) window.asesoresData = await fetch(`${API}/api/asesores`).then(r => r.json()).catch(() => []);
   window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => []);
-  const data = filterByDate(window.prospectosData);
-  const board = document.getElementById('kanban-pipeline-prospectos');
-  if (!board) return;
-
-  board.querySelectorAll('.kanban-cards').forEach(el => el.innerHTML = '');
-  board.querySelectorAll('.kanban-count').forEach(el => el.textContent = '0');
-
-  data.forEach(r => {
-    const etapa = r['Etapa'] || 'Nuevo';
-    const col = board.querySelector(`.kanban-col[data-status="${etapa}"] .kanban-cards`);
-    if (!col) return;
-
-    const card = document.createElement('div');
-    card.className = 'kanban-card';
-    card.setAttribute('draggable', 'true');
-    card.setAttribute('data-id', r['ID Prospectos']);
-
-    card.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('text/plain', JSON.stringify({ id: r['ID Prospectos'], type: 'prospectos' }));
-      e.target.style.opacity = '0.5';
-    });
-    card.addEventListener('dragend', e => {
-      e.target.style.opacity = '1';
-    });
-
-    card.innerHTML = `
-      <div class="kanban-card-header">
-        <input type="checkbox" class="row-checkbox" value="${r['ID Prospectos'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)">
-        <span class="badge badge-purple">${r['ID Prospectos'] || '—'}</span>
-        <span style="font-size:11px;color:var(--text2);">${r['Fecha de Registro'] || ''}</span>
-      </div>
-      <div class="kanban-card-title" onclick="viewRecord('prospectos', '${r['ID Prospectos'] || ''}')">${r['Nombre del Contacto'] || '—'}</div>
-      <div class="kanban-card-body" onclick="viewRecord('prospectos', '${r['ID Prospectos'] || ''}')">
-        <p><strong>Asesor:</strong> ${r['Asesor'] || '—'}</p>
-        <p><strong>Contacto:</strong> ${r['Correo Electrónico'] || ''} ${r['Teléfono'] || ''}</p>
-        <p title="${r['Notas'] || ''}">${truncate(r['Notas'], 40)}</p>
-      </div>
-      <div class="kanban-card-footer">
-        <span class="kanban-card-resp">${r['Medio de contacto'] || '—'}</span>
-        <span class="badge badge-blue">${etapa}</span>
-      </div>
-    `;
-    col.appendChild(card);
-  });
-
-  board.querySelectorAll('.kanban-col').forEach(col => {
-    const count = col.querySelectorAll('.kanban-card').length;
-    col.querySelector('.kanban-count').textContent = count;
-  });
+  const pipeline = await loadPipelineConfig('prospectos');
+  if (pipeline) renderDynamicKanban(pipeline, window.prospectosData, PIPELINE_BOARD_CONFIG.prospectos);
 }
 
 // Patch btnAdd for archivos/citas to trigger custom actions
@@ -2372,6 +2347,211 @@ function filterTablero(query) {
   };
   const boardId = boardIds[currentTablero];
   if (boardId) filterKanban(boardId, query);
+}
+
+window.pipelineEditorState = { definitions: {}, selectedKey: 'proyectos' };
+
+function pipelineEditorJson(value, fallback = []) {
+  if (!value) return JSON.stringify(fallback, null, 2);
+  return JSON.stringify(value, null, 2);
+}
+
+function pipelineEditorId(value) {
+  try { return decodeURIComponent(value); } catch (_) { return value; }
+}
+
+function pipelineEditorStage(stageId) {
+  const normalizedId = pipelineEditorId(stageId);
+  return window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey]?.stages.find(stage => stage.stage_id === normalizedId);
+}
+
+function updatePipelineEditorMeta(field, value) {
+  const definition = window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey];
+  if (definition) definition[field] = value;
+}
+
+function updatePipelineStage(stageId, field, value) {
+  const stage = pipelineEditorStage(stageId);
+  if (!stage) return;
+  stage[field] = value;
+  if (field === 'is_initial' && value) {
+    const definition = window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey];
+    const normalizedId = pipelineEditorId(stageId);
+    definition.stages.forEach(item => { if (item.stage_id !== normalizedId) item.is_initial = false; });
+  }
+}
+
+function updatePipelineStageJson(stageId, field, value) {
+  const stage = pipelineEditorStage(stageId);
+  if (!stage) return;
+  try { stage[field] = JSON.parse(value); } catch (_) { /* backend validation explains invalid JSON on save */ }
+}
+
+function updatePipelineStep(stageId, stepId, field, value) {
+  const stage = pipelineEditorStage(stageId);
+  const step = stage?.steps?.find(item => item.step_id === pipelineEditorId(stepId));
+  if (step) step[field] = value;
+}
+
+function updatePipelineStepJson(stageId, stepId, field, value) {
+  const stage = pipelineEditorStage(stageId);
+  const step = stage?.steps?.find(item => item.step_id === pipelineEditorId(stepId));
+  if (!step) return;
+  try { step[field] = JSON.parse(value); } catch (_) { /* backend validation explains invalid JSON on save */ }
+}
+
+function movePipelineStage(stageId, direction) {
+  const definition = window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey];
+  if (!definition) return;
+  const stages = [...definition.stages].sort((a, b) => a.order_index - b.order_index);
+  const index = stages.findIndex(stage => stage.stage_id === pipelineEditorId(stageId));
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= stages.length) return;
+  [stages[index], stages[target]] = [stages[target], stages[index]];
+  stages.forEach((stage, order) => { stage.order_index = order; });
+  definition.stages = stages;
+  renderPipelineEditor();
+}
+
+function movePipelineStep(stageId, stepId, direction) {
+  const stage = pipelineEditorStage(stageId);
+  if (!stage) return;
+  const steps = [...(stage.steps || [])].sort((a, b) => a.order_index - b.order_index);
+  const index = steps.findIndex(step => step.step_id === pipelineEditorId(stepId));
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= steps.length) return;
+  [steps[index], steps[target]] = [steps[target], steps[index]];
+  steps.forEach((step, order) => { step.order_index = order; });
+  stage.steps = steps;
+  renderPipelineEditor();
+}
+
+function addPipelineStage() {
+  const definition = window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey];
+  if (!definition) return;
+  const name = prompt('Nombre de la nueva etapa:');
+  if (!name?.trim()) return;
+  const key = prompt('Clave única de la etapa:', name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'));
+  if (!key?.trim()) return;
+  const hasInitial = definition.stages.some(stage => stage.is_initial && stage.active !== false);
+  definition.stages.push({
+    stage_id: `STG-${Date.now()}`,
+    pipeline_id: definition.pipeline_id,
+    stage_key: key.trim(),
+    name: name.trim(),
+    type: 'stage',
+    order_index: definition.stages.length,
+    active: true,
+    is_initial: !hasInitial,
+    is_terminal: false,
+    color: '#7c3aed',
+    legacy_value: key.trim(),
+    conditions: [],
+    actions: [],
+    steps: []
+  });
+  renderPipelineEditor();
+}
+
+function removePipelineStage(stageId) {
+  const definition = window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey];
+  const stage = pipelineEditorStage(stageId);
+  if (!definition || !stage || !confirm(`¿Eliminar la etapa "${stage.name}"? Los registros se reencadenarán al siguiente paso.`)) return;
+  const normalizedId = pipelineEditorId(stageId);
+  if (definition.stages.length <= 1) { showToast('El pipeline debe conservar al menos una etapa', true); return; }
+  definition.stages = definition.stages.filter(item => item.stage_id !== normalizedId);
+  if (!definition.stages.some(item => item.is_initial)) definition.stages[0].is_initial = true;
+  definition.stages.forEach((item, index) => { item.order_index = index; });
+  definition.transitions = (definition.transitions || []).filter(item => item.from_stage_id !== normalizedId && item.to_stage_id !== normalizedId);
+  renderPipelineEditor();
+}
+
+function addPipelineStep(stageId) {
+  const stage = pipelineEditorStage(stageId);
+  if (!stage) return;
+  const name = prompt(`Nombre del paso para ${stage.name}:`);
+  if (!name?.trim()) return;
+  stage.steps = stage.steps || [];
+  stage.steps.push({ step_id: `STEP-${Date.now()}`, stage_id: stageId, step_key: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'), name: name.trim(), type: 'task', order_index: stage.steps.length, active: true, conditions: [], actions: [], config: {} });
+  renderPipelineEditor();
+}
+
+function removePipelineStep(stageId, stepId) {
+  const stage = pipelineEditorStage(stageId);
+  if (!stage) return;
+  stage.steps = (stage.steps || []).filter(step => step.step_id !== pipelineEditorId(stepId));
+  stage.steps.forEach((step, index) => { step.order_index = index; });
+  renderPipelineEditor();
+}
+
+function renderPipelineEditor() {
+  const definition = window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey];
+  const container = document.getElementById('pipelineEditorBody');
+  if (!definition || !container) return;
+  const stages = [...definition.stages].sort((a, b) => a.order_index - b.order_index);
+  container.innerHTML = `
+    <div class="pipeline-editor-toolbar">
+      <div class="form-group"><label>Nombre del pipeline</label><input value="${escapeDetailHtml(definition.name)}" oninput="updatePipelineEditorMeta('name', this.value)"></div>
+      <div class="form-group"><label>Estado</label><select onchange="updatePipelineEditorMeta('status', this.value)"><option value="draft" ${definition.status === 'draft' ? 'selected' : ''}>Borrador</option><option value="published" ${definition.status === 'published' ? 'selected' : ''}>Publicado</option><option value="archived" ${definition.status === 'archived' ? 'selected' : ''}>Archivado</option></select></div>
+      <div class="form-group"><label>Versión</label><input value="${escapeDetailHtml(definition.version)}" disabled></div>
+    </div>
+    <div class="pipeline-editor-actions"><button class="btn btn-outline" onclick="addPipelineStage()"><i class="ph ph-plus"></i> Nueva etapa</button><span class="text-muted">${stages.length} etapas configuradas</span></div>
+    <div class="pipeline-stage-editor-list">${stages.map((stage, index) => `
+      <article class="pipeline-stage-editor">
+        <header><strong>${index + 1}. ${escapeDetailHtml(stage.name)}</strong><div><button class="btn btn-outline btn-small" onclick="movePipelineStage('${encodeURIComponent(stage.stage_id)}', -1)">↑</button><button class="btn btn-outline btn-small" onclick="movePipelineStage('${encodeURIComponent(stage.stage_id)}', 1)">↓</button><button class="btn btn-outline btn-small" onclick="removePipelineStage('${encodeURIComponent(stage.stage_id)}')"><i class="ph ph-trash"></i></button></div></header>
+        <div class="pipeline-editor-grid">
+          <div class="form-group"><label>Nombre</label><input value="${escapeDetailHtml(stage.name)}" oninput="updatePipelineStage(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),'name',this.value)"></div>
+          <div class="form-group"><label>Clave</label><input value="${escapeDetailHtml(stage.stage_key)}" oninput="updatePipelineStage(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),'stage_key',this.value)"></div>
+          <div class="form-group"><label>Tipo</label><input value="${escapeDetailHtml(stage.type)}" oninput="updatePipelineStage(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),'type',this.value)"></div>
+          <div class="form-group"><label>Valor legacy</label><input value="${escapeDetailHtml(stage.legacy_value)}" oninput="updatePipelineStage(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),'legacy_value',this.value)"></div>
+          <label class="pipeline-check"><input type="checkbox" ${stage.active !== false ? 'checked' : ''} onchange="updatePipelineStage(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),'active',this.checked)"> Activa</label>
+          <label class="pipeline-check"><input type="checkbox" ${stage.is_initial ? 'checked' : ''} onchange="updatePipelineStage(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),'is_initial',this.checked)"> Inicial</label>
+          <label class="pipeline-check"><input type="checkbox" ${stage.is_terminal ? 'checked' : ''} onchange="updatePipelineStage(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),'is_terminal',this.checked)"> Terminal</label>
+        </div>
+        <div class="pipeline-editor-json"><label>Condiciones JSON</label><textarea onblur="updatePipelineStageJson(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),'conditions',this.value)">${escapeDetailHtml(pipelineEditorJson(stage.conditions))}</textarea><label>Acciones JSON</label><textarea onblur="updatePipelineStageJson(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),'actions',this.value)">${escapeDetailHtml(pipelineEditorJson(stage.actions))}</textarea></div>
+        <div class="pipeline-step-header"><strong>Pasos</strong><button class="btn btn-outline btn-small" onclick="addPipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'))">+ Paso</button></div>
+        ${(stage.steps || []).sort((a, b) => a.order_index - b.order_index).map((step, stepIndex) => `
+          <div class="pipeline-step-editor"><div class="pipeline-step-title"><span>${stepIndex + 1}.</span><input value="${escapeDetailHtml(step.name)}" oninput="updatePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'name',this.value)"><button class="btn btn-outline btn-small" onclick="movePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),-1)">↑</button><button class="btn btn-outline btn-small" onclick="movePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),1)">↓</button><button class="btn btn-outline btn-small" onclick="removePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'))"><i class="ph ph-trash"></i></button></div><div class="pipeline-editor-grid"><input value="${escapeDetailHtml(step.step_key)}" placeholder="Clave" oninput="updatePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'step_key',this.value)"><select onchange="updatePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'type',this.value)">${['task', 'approval', 'notification', 'automation', 'custom'].map(type => `<option ${step.type === type ? 'selected' : ''}>${type}</option>`).join('')}</select><label class="pipeline-check"><input type="checkbox" ${step.active !== false ? 'checked' : ''} onchange="updatePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'active',this.checked)"> Activo</label></div><div class="pipeline-editor-json"><textarea onblur="updatePipelineStepJson(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'conditions',this.value)" placeholder="Condiciones JSON">${escapeDetailHtml(pipelineEditorJson(step.conditions))}</textarea><textarea onblur="updatePipelineStepJson(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'actions',this.value)" placeholder="Acciones JSON">${escapeDetailHtml(pipelineEditorJson(step.actions))}</textarea></div></div>`).join('')}
+      </article>`).join('')}</div>
+    <div class="pipeline-editor-footer"><button class="btn btn-outline" onclick="publishPipelineEditor()">Publicar versión</button><button class="btn btn-primary" onclick="savePipelineEditor()">Guardar configuración</button></div>`;
+}
+
+async function openPipelineManager() {
+  try {
+    const response = await fetch(`${API}/api/pipelines`);
+    const definitions = await response.json();
+    window.pipelineEditorState.definitions = Object.fromEntries(definitions.map(definition => [definition.key, JSON.parse(JSON.stringify(definition))]));
+    window.pipelineEditorState.selectedKey = currentTablero === 'pipeline-prospectos' ? 'prospectos' : currentTablero === 'tareas' ? 'tareas' : 'proyectos';
+    const selector = `<div class="form-group"><label>Pipeline</label><select id="pipelineEditorSelect" onchange="window.pipelineEditorState.selectedKey=this.value;renderPipelineEditor()">${definitions.map(definition => `<option value="${escapeDetailHtml(definition.key)}" ${definition.key === window.pipelineEditorState.selectedKey ? 'selected' : ''}>${escapeDetailHtml(definition.name)}</option>`).join('')}</select></div><div id="pipelineEditorBody"></div>`;
+    openModal('Configurar pipeline dinámico', selector);
+    renderPipelineEditor();
+  } catch (error) {
+    showToast('No se pudo cargar la configuración de pipelines', true);
+  }
+}
+
+async function savePipelineEditor() {
+  const key = window.pipelineEditorState.selectedKey;
+  const definition = window.pipelineEditorState.definitions[key];
+  if (!definition) return;
+  const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(key)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-User-Name': 'Administrador', 'X-Source': 'pipeline_editor' }, body: JSON.stringify(definition) });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) { showToast(result.error || 'No se pudo guardar el pipeline', true); return; }
+  window.pipelineConfigs[key] = result;
+  closeModal();
+  showToast('Configuración guardada');
+  loadTableroView(currentTablero);
+}
+
+async function publishPipelineEditor() {
+  const key = window.pipelineEditorState.selectedKey;
+  const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(key)}/publish`, { method: 'POST', headers: { 'X-User-Name': 'Administrador', 'X-Source': 'pipeline_editor' } });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) { showToast(result.error || 'No se pudo publicar el pipeline', true); return; }
+  window.pipelineEditorState.definitions[key] = result;
+  window.pipelineConfigs[key] = result;
+  renderPipelineEditor();
+  showToast('Nueva versión publicada');
 }
 
 // ── PAGOS Y GASTOS ────────────────────────────────────────────────

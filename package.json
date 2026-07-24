@@ -5,6 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test:pipeline": "node scripts/test/test_pipeline_validation.js",
+    "migrate:pipelines": "node scripts/migrations/migrate_dynamic_pipelines.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

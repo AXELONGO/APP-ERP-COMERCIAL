@@ -1,5 +1,6 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const { getSheets, getPublicData, findRowById, getSheetId, SPREADSHEET_ID } = require('../config/sheets');
+const { getPipeline, validateLegacyStageChange, recordLegacyStageChange } = require('../services/pipelineService');
 
 const PREFIX_MAP = {
   'Clientes': 'CLI-',
@@ -13,8 +14,37 @@ const PREFIX_MAP = {
   'Pagos y Gastos': 'PG-'
 };
 
-function crudRoutes(app, sheetName, range, mapper, customEndpoint) {
+function crudRoutes(app, sheetName, range, mapper, customEndpoint, options = {}) {
   const endpoint = customEndpoint || sheetName.toLowerCase().replace(/ /g, '_');
+  const pipelineKey = options.pipelineKey;
+  const recordType = options.recordType || pipelineKey;
+  const stageField = options.stageField || 'etapa';
+
+  async function validatePipelineField(req, useInitial = false) {
+    if (!pipelineKey) return;
+    if (useInitial && req.body?.[stageField] === undefined) {
+      const pipeline = await getPipeline(pipelineKey);
+      const initial = pipeline.stages.find(stage => stage.active && stage.is_initial) || pipeline.stages.find(stage => stage.active);
+      if (initial) req.body[stageField] = initial.legacy_value || initial.stage_key;
+    }
+    if (req.body?.[stageField] === undefined) return;
+    await validateLegacyStageChange({ pipelineKey, value: req.body[stageField] });
+  }
+
+  async function recordPipelineField(req, recordId) {
+    if (!pipelineKey || req.body?.[stageField] === undefined || !recordId) return;
+    try {
+      await recordLegacyStageChange({
+        pipelineKey,
+        recordType,
+        recordId,
+        value: req.body[stageField],
+        actor: { user_id: req.get('x-user-id') || null, user_name: req.get('x-user-name') || null }
+      });
+    } catch (error) {
+      console.error('[Pipeline] No se pudo registrar el estado:', error.message);
+    }
+  }
 
   app.get(`/api/${endpoint}`, asyncHandler(async (req, res) => {
     const rows = await getPublicData(sheetName);
@@ -22,6 +52,7 @@ function crudRoutes(app, sheetName, range, mapper, customEndpoint) {
   }));
 
   app.post(`/api/${endpoint}`, asyncHandler(async (req, res) => {
+    await validatePipelineField(req, true);
     const sheets = await getSheets();
 
     let nextId = '';
@@ -51,10 +82,12 @@ function crudRoutes(app, sheetName, range, mapper, customEndpoint) {
       valueInputOption: 'USER_ENTERED',
       resource: { values: [row] },
     });
+    await recordPipelineField(req, nextId);
     res.json({ success: true, id: nextId });
   }));
 
   app.put(`/api/${endpoint}/:id`, asyncHandler(async (req, res) => {
+    await validatePipelineField(req);
     const sheets = await getSheets();
     const rowNum = await findRowById(sheets, sheetName, req.params.id);
     if (rowNum === -1) return res.status(404).json({ error: 'Registro no encontrado' });
@@ -79,6 +112,7 @@ function crudRoutes(app, sheetName, range, mapper, customEndpoint) {
       valueInputOption: 'USER_ENTERED',
       resource: { values: [row] },
     });
+    await recordPipelineField(req, req.params.id);
     res.json({ success: true });
   }));
 
