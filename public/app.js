@@ -1870,10 +1870,6 @@ function renderActividadRelaciones(query = '') {
   if (currentValue && [...relationSelect.options].some(option => option.value === currentValue)) relationSelect.value = currentValue;
 }
 
-function filterActividadRelaciones(query) {
-  renderActividadRelaciones(query);
-}
-
 function renderActividadesTable(data) {
   const tbody = document.querySelector('#tableActividades tbody');
   if (!tbody) return;
