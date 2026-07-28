@@ -1580,3 +1580,146 @@ tbody tr:hover {
     font-size: 20px;
   }
 }
+
+/* ── AI COMMUNICATION ASSISTANT ── */
+.ai-topbar-button {
+  border-color: #c4b5fd;
+  color: #6d28d9;
+  background: #faf5ff;
+}
+
+.ai-communication-modal {
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
+}
+
+.ai-modal-subtitle {
+  margin: 4px 0 0;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.ai-context-card {
+  padding: 9px 12px;
+  border: 1px solid #ddd6fe;
+  border-radius: 9px;
+  color: #5b21b6;
+  background: #faf5ff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ai-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 12px 0;
+}
+
+.ai-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-submit-button {
+  width: 100%;
+  justify-content: center;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
+.ai-status-message {
+  min-height: 18px;
+  margin-top: 8px;
+  color: var(--text-light);
+  font-size: 11px;
+}
+
+.ai-result {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.ai-result-notice {
+  padding: 9px 11px;
+  border-radius: 8px;
+  color: #92400e;
+  background: #fffbeb;
+  font-size: 12px;
+}
+
+.ai-result-summary,
+.ai-draft {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.ai-result-summary p,
+.ai-draft p {
+  margin: 6px 0 0;
+  color: var(--text2);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.ai-result-label {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.ai-result-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ai-result-columns > div {
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.ai-result-columns ul {
+  margin: 7px 0 0;
+  padding-left: 16px;
+  color: var(--text2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-result-columns li + li {
+  margin-top: 5px;
+}
+
+.ai-empty-result {
+  margin: 7px 0 0;
+  color: var(--text-light);
+  font-size: 12px;
+}
+
+.ai-draft-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (max-width: 640px) {
+  .ai-communication-modal {
+    width: 100%;
+  }
+
+  .ai-options-grid,
+  .ai-result-columns {
+    grid-template-columns: 1fr;
+  }
+}

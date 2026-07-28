@@ -6,13 +6,17 @@
   "scripts": {
     "start": "node server.js",
     "test:pipeline": "node scripts/test/test_pipeline_validation.js",
+    "test:communication": "node scripts/test/test_communication_agent.js",
     "migrate:pipelines": "node scripts/migrations/migrate_dynamic_pipelines.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run test:communication && npm run test:pipeline"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
@@ -22,5 +26,10 @@
     "helmet": "^8.2.0",
     "pdfkit": "^0.19.1",
     "pngjs": "^7.0.0"
+  },
+  "overrides": {
+    "googleapis-common": {
+      "gaxios": "7.3.0"
+    }
   }
 }

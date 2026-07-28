@@ -17,7 +17,7 @@
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -122,6 +122,7 @@
     <div class="topbar-right">
       <button class="btn btn-outline" id="btnFilterDate" onclick="openDateFilter()"><i class="ph ph-calendar"></i> Fechas</button>
       <button class="btn btn-outline" id="btnDeleteMode" style="display:none;" onclick="toggleDeleteMode()"><i class="ph ph-trash"></i> <span id="textDeleteMode">Eliminar</span></button>
+      <button class="btn btn-outline ai-topbar-button" onclick="openAiCommunicationModal()"><i class="ph ph-sparkle"></i> Asistente IA</button>
       <button class="btn btn-outline" onclick="refreshData()">↻ Actualizar</button>
       <button class="btn btn-primary" id="btnAdd" style="display:none;" onclick="openModal()">+ Nuevo Registro</button>
     </div>
@@ -567,6 +568,53 @@
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- ── ASISTENTE IA DE COMUNICACION ──────────────────────────── -->
+<div class="modal-overlay hidden" id="aiCommunicationModal" onclick="if(event.target===this) closeAiCommunicationModal()">
+  <div class="modal ai-communication-modal">
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title"><i class="ph ph-sparkle"></i> Asistente IA de comunicación</h2>
+        <p class="ai-modal-subtitle">Convierte datos del ERP en mensajes claros y accionables.</p>
+      </div>
+      <button class="modal-close" onclick="closeAiCommunicationModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ai-context-card" id="aiContextCard">Contexto: vista actual</div>
+      <div class="ai-quick-actions">
+        <button type="button" class="btn btn-outline btn-small" onclick="setAiQuickPrompt('Resume la situación actual y señala lo más importante para comunicar internamente.')">Resumen ejecutivo</button>
+        <button type="button" class="btn btn-outline btn-small" onclick="setAiQuickPrompt('Redacta un seguimiento con el siguiente paso, una fecha sugerida y una llamada a la acción clara.')">Redactar seguimiento</button>
+        <button type="button" class="btn btn-outline btn-small" onclick="setAiQuickPrompt('Convierte esta información en una actualización breve para dirección, con riesgos y próximos pasos.')">Actualizar dirección</button>
+      </div>
+      <div class="ai-options-grid">
+        <div class="form-group">
+          <label for="aiChannel">Canal</label>
+          <select id="aiChannel">
+            <option value="interno">Comunicación interna</option>
+            <option value="email">Correo electrónico</option>
+            <option value="whatsapp">WhatsApp</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="aiTone">Tono</label>
+          <select id="aiTone">
+            <option value="ejecutivo">Ejecutivo</option>
+            <option value="cercano">Cercano</option>
+            <option value="directo">Directo</option>
+            <option value="formal">Formal</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="aiPrompt">¿Qué necesitas comunicar?</label>
+        <textarea id="aiPrompt" rows="4" maxlength="2000" placeholder="Ej. Resume este prospecto y prepara un mensaje de seguimiento para mañana."></textarea>
+      </div>
+      <button type="button" class="btn btn-primary ai-submit-button" id="aiSubmitButton" onclick="submitAiCommunication()"><i class="ph ph-sparkle"></i> Preparar comunicación</button>
+      <div class="ai-status-message" id="aiStatusMessage"></div>
+      <div class="ai-result hidden" id="aiResult"></div>
+    </div>
   </div>
 </div>
 

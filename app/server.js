@@ -16,6 +16,7 @@ const { registerArchivosRoutes } = require('./routes/archivos');
 const { registerCalendlyRoutes } = require('./routes/calendly');
 const { registerCorreosRoutes } = require('./routes/correos');
 const { registerPipelineRoutes } = require('./routes/pipelines');
+const { registerAiRoutes } = require('./routes/ai');
 const { seedLegacyPipelines } = require('./services/pipelineService');
 const { ensureProspectosGiroColumn } = require('./services/legacySchemaService');
 const { getAuthUrl, saveTokenFromCode } = require('./config/drive');
@@ -132,6 +133,7 @@ registerArchivosRoutes(app);
 registerCalendlyRoutes(app);
 registerCorreosRoutes(app);
 registerPipelineRoutes(app);
+registerAiRoutes(app);
 
 // ── Google Drive OAuth ──────────────────────────────────────
 app.get('/api/auth/google', (req, res) => {

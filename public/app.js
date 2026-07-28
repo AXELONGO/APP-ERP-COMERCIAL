@@ -255,6 +255,8 @@ async function executeBulkDelete() {
 
 function navigateTo(section) {
   currentSection = section;
+  window.aiCommunicationContext = null;
+  window.aiCommunicationHistory = [];
   document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`section-${section}`)?.classList.remove('hidden');
@@ -1101,6 +1103,116 @@ async function loadDashboard() {
 
 
 // ── MODAL ────────────────────────────────────────────────────────
+window.aiCommunicationContext = null;
+window.aiCommunicationHistory = [];
+
+function aiModuleForCurrentView() {
+  if (currentSection === 'tableros') {
+    return ({ pipeline: 'proyectos', 'pipeline-prospectos': 'prospectos', tareas: 'tareas' }[currentTablero] || 'tareas');
+  }
+  return ['prospectos', 'clientes', 'proyectos', 'tareas', 'citas', 'actividades'].includes(currentSection) ? currentSection : null;
+}
+
+function openAiCommunicationModal() {
+  const context = window.aiCommunicationContext || { module: aiModuleForCurrentView(), recordId: null };
+  const moduleLabel = context.module ? context.module.replace(/_/g, ' ') : 'vista actual';
+  const scopeLabel = context.recordId ? `registro seleccionado en ${moduleLabel}` : moduleLabel;
+  const contextCard = document.getElementById('aiContextCard');
+  if (contextCard) contextCard.textContent = `Contexto: ${scopeLabel}`;
+  document.getElementById('aiCommunicationModal').classList.remove('hidden');
+  document.getElementById('aiPrompt').focus();
+  fetch('/api/ai/status').then(response => response.json()).then(status => {
+    const statusMessage = document.getElementById('aiStatusMessage');
+    if (statusMessage) statusMessage.textContent = status.available
+      ? (status.providerConfigured ? 'IA activa con fallback local de seguridad.' : 'Modo local activo; no se envían datos a un proveedor externo.')
+      : 'Asistente desactivado por seguridad. Requiere autenticación de la aplicación.';
+  }).catch(() => {});
+}
+
+function closeAiCommunicationModal() {
+  document.getElementById('aiCommunicationModal').classList.add('hidden');
+}
+
+function setAiQuickPrompt(prompt) {
+  const input = document.getElementById('aiPrompt');
+  if (input) {
+    input.value = prompt;
+    input.focus();
+  }
+}
+
+function aiListHtml(items) {
+  const list = Array.isArray(items) ? items : [];
+  return list.length ? `<ul>${list.map(item => `<li>${escapeDetailHtml(item)}</li>`).join('')}</ul>` : '<p class="ai-empty-result">Sin datos suficientes.</p>';
+}
+
+function renderAiCommunicationResult(payload) {
+  const result = payload.result || {};
+  const resultElement = document.getElementById('aiResult');
+  resultElement.innerHTML = `
+    ${payload.notice ? `<div class="ai-result-notice">${escapeDetailHtml(payload.notice)}</div>` : ''}
+    <div class="ai-result-summary"><span class="ai-result-label">Resumen</span><p>${escapeDetailHtml(result.summary || '')}</p></div>
+    <div class="ai-result-columns">
+      <div><span class="ai-result-label">Puntos clave</span>${aiListHtml(result.key_points)}</div>
+      <div><span class="ai-result-label">Riesgos</span>${aiListHtml(result.risks)}</div>
+      <div><span class="ai-result-label">Próximos pasos</span>${aiListHtml(result.next_steps)}</div>
+    </div>
+    <div class="ai-draft"><div class="ai-draft-header"><span class="ai-result-label">Borrador</span><button type="button" class="btn btn-outline btn-small" onclick="copyAiDraft()"><i class="ph ph-copy"></i> Copiar</button></div>${result.subject ? `<strong>${escapeDetailHtml(result.subject)}</strong>` : ''}<p id="aiDraftText">${escapeDetailHtml(result.draft || '')}</p></div>`;
+  resultElement.classList.remove('hidden');
+}
+
+async function submitAiCommunication() {
+  const prompt = document.getElementById('aiPrompt').value.trim();
+  const button = document.getElementById('aiSubmitButton');
+  const resultElement = document.getElementById('aiResult');
+  if (!prompt) {
+    showToast('Escribe qué necesitas comunicar.', true);
+    return;
+  }
+
+  const context = window.aiCommunicationContext || { module: aiModuleForCurrentView(), recordId: null };
+  button.disabled = true;
+  button.innerHTML = '<i class="ph ph-spinner"></i> Preparando...';
+  resultElement.classList.add('hidden');
+  try {
+    const response = await fetch('/api/ai/communication', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: prompt,
+        channel: document.getElementById('aiChannel').value,
+        tone: document.getElementById('aiTone').value,
+        module: context.module,
+        record_id: context.recordId,
+        history: window.aiCommunicationHistory || []
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'No se pudo preparar la comunicación.');
+    renderAiCommunicationResult(payload);
+    window.aiCommunicationHistory = [
+      ...(window.aiCommunicationHistory || []),
+      { request: prompt, summary: payload.result?.summary || '' }
+    ].slice(-6);
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = '<i class="ph ph-sparkle"></i> Preparar comunicación';
+  }
+}
+
+async function copyAiDraft() {
+  const draft = document.getElementById('aiDraftText')?.textContent || '';
+  if (!draft) return;
+  try {
+    await navigator.clipboard.writeText(draft);
+    showToast('Borrador copiado');
+  } catch (_) {
+    showToast('No se pudo copiar el borrador.', true);
+  }
+}
+
 async function openModal(title, body) {
   if (!title && !body) {
     // If called without arguments, open the 'Nuevo Registro' form for current section
@@ -1648,6 +1760,8 @@ function viewRecord(endpoint, id) {
     showToast('Registro no encontrado en memoria', true);
     return;
   }
+
+  window.aiCommunicationContext = { module: endpoint, recordId: id };
 
   const fields = getDetailFields(record);
   const titleField = fields[0];
