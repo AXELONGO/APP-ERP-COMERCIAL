@@ -1118,9 +1118,15 @@ function openAiCommunicationModal() {
   const moduleLabel = context.module ? context.module.replace(/_/g, ' ') : 'vista actual';
   const scopeLabel = context.recordId ? `registro seleccionado en ${moduleLabel}` : moduleLabel;
   const contextCard = document.getElementById('aiContextCard');
+  const modal = document.getElementById('aiCommunicationModal');
+  const promptInput = document.getElementById('aiPrompt');
+  if (!modal || !promptInput) {
+    showToast('La interfaz del asistente aún no terminó de cargar.', true);
+    return;
+  }
   if (contextCard) contextCard.textContent = `Contexto: ${scopeLabel}`;
-  document.getElementById('aiCommunicationModal').classList.remove('hidden');
-  document.getElementById('aiPrompt').focus();
+  modal.classList.remove('hidden');
+  promptInput.focus();
   fetch('/api/ai/status').then(response => response.json()).then(status => {
     const statusMessage = document.getElementById('aiStatusMessage');
     if (statusMessage) statusMessage.textContent = status.available
