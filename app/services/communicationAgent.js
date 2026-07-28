@@ -176,7 +176,7 @@ function buildLocalBrief(context, { channel, tone }) {
 }
 
 function aiConfiguration() {
-  const key = process.env.AI_API_KEY || process.env.OPENAI_API_KEY || '';
+  const key = process.env.AI_API_KEY || process.env.XAI_API_KEY || process.env.OPENAI_API_KEY || '';
   return {
     communicationEnabled: process.env.AI_COMMUNICATION_ENABLED === 'true',
     providerEnabled: process.env.AI_ENABLED === 'true' && Boolean(key),
