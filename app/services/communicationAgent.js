@@ -176,13 +176,13 @@ function buildLocalBrief(context, { channel, tone }) {
 }
 
 function aiConfiguration() {
-  const key = process.env.AI_API_KEY || process.env.XAI_API_KEY || process.env.OPENAI_API_KEY || '';
+  const key = process.env.AI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || '';
   return {
     communicationEnabled: process.env.AI_COMMUNICATION_ENABLED === 'true',
     providerEnabled: process.env.AI_ENABLED === 'true' && Boolean(key),
     key,
-    model: process.env.AI_MODEL || 'gpt-4o-mini',
-    baseUrl: (process.env.AI_BASE_URL || process.env.OPENAI_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    model: process.env.AI_MODEL || 'llama-3.1-8b-instant',
+    baseUrl: (process.env.AI_BASE_URL || process.env.GROQ_BASE_URL || process.env.OPENAI_URL || 'https://api.groq.com/openai/v1').replace(/\/$/, ''),
     timeoutMs: Number(process.env.AI_TIMEOUT_MS || 25000)
   };
 }

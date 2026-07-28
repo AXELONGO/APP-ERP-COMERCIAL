@@ -26,11 +26,11 @@ Despues de proteger la app, se puede activar un proveedor compatible con OpenAI:
 AI_COMMUNICATION_ENABLED=true
 AI_ENABLED=true
 AI_API_KEY=...
-AI_MODEL=grok-4.5
-AI_BASE_URL=https://api.x.ai/v1
+AI_MODEL=llama-3.1-8b-instant
+AI_BASE_URL=https://api.groq.com/openai/v1
 ```
 
-Tambien se acepta `XAI_API_KEY` como nombre de variable. La API de xAI es compatible con el endpoint de chat usado por el ERP. La cuenta de xAI requiere saldo o creditos promocionales; el acceso gratuito de la aplicacion Grok no equivale a acceso gratuito a la API.
+Tambien se acepta `GROQ_API_KEY` como nombre de variable. Groq es compatible con el endpoint de chat usado por el ERP. Su plan gratuito tiene limites de uso; no es una API ilimitada.
 
 Si el proveedor no responde, el ERP usa un fallback local basado en los datos disponibles. Los datos de correo y telefono no se envian al proveedor salvo que `AI_INCLUDE_CONTACT_DETAILS=true`.
 
