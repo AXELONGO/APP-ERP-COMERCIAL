@@ -2596,33 +2596,7 @@ async function loadPOSProductsTable() { await posLoadTable('pos_productos', 'pos
 async function loadPOSInventory() { await posLoadTable('pos_inventario', 'posInventoryTable', ['Producto ID', 'Tipo', 'Cantidad', 'Stock actual', 'Motivo', 'Fecha']); }
 async function loadPOSClients() { await posLoadTable('pos_clientes', 'posClientsTable', ['Nombre', 'Telefono', 'Correo', 'Puntos', 'Segmento']); }
 async function loadPOSEmployees() { await posLoadTable('pos_empleados', 'posEmployeesTable', ['Nombre', 'Rol', 'Activo', 'Fecha de registro']); }
-async function loadPOSCash() {
-  const response = await fetch(`${API}/api/pos_cortecaja`);
-  const rows = await response.json();
-  const open = rows.find(row => row.Estado === 'Abierta');
-  const state = document.getElementById('posCashState');
-  if (state) state.textContent = open ? `Abierta: ${open['ID Corte']}` : 'Sin apertura';
-  if (open) document.getElementById('posClosingId').value = open['ID Corte'];
-}
-async function openPOSCash() {
-  try {
-    const response = await fetch(`${API}/api/pos/caja/open`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ efectivoInicial: Number(document.getElementById('posOpeningCash').value || 0), actor: 'POS' }) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'No se pudo abrir la caja');
-    document.getElementById('posClosingId').value = result.id;
-    showToast(`Caja ${result.id} abierta`);
-    loadPOSCash();
-  } catch (error) { showToast(error.message, true); }
-}
-async function closePOSCash() {
-  try {
-    const response = await fetch(`${API}/api/pos/caja/close`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cajaId: document.getElementById('posClosingId').value.trim(), efectivoContado: Number(document.getElementById('posClosingCash').value || 0), actor: 'POS' }) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'No se pudo cerrar la caja');
-    showToast(`Caja cerrada. Diferencia: ${posMoney(result.diferencia)}`);
-    loadPOSCash();
-  } catch (error) { showToast(error.message, true); }
-}
+async function loadPOSCash() { /* La apertura y corte se gestionan por POS_CorteCaja. */ }
 async function loadPOSReports() { const rows = await posLoadTable('pos_ventas', 'posReportsTable', ['Estado', 'Total', 'Metodo de pago', 'Fecha']); const confirmed = rows.filter(row => row.Estado === 'Confirmada'); document.getElementById('posReportSales').textContent = confirmed.length; document.getElementById('posReportTotal').textContent = posMoney(confirmed.reduce((sum, row) => sum + Number(row.Total || 0), 0)); }
 async function loadPOSConfiguration() {}
 

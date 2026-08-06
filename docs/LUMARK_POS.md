@@ -11,19 +11,7 @@ El POS se integra en la arquitectura activa de `APP-ERP-COMERCIAL`:
 - Eventos: `N8N_POS_WEBHOOK_URL`, con fallback al motor de movimientos existente.
 - Alcance: un negocio y una sucursal.
 
-La migración no se ejecuta automáticamente durante el arranque. Con credenciales válidas puedes crear las pestañas de forma idempotente:
-
-```bash
-SPREADSHEET_ID="..." GOOGLE_CREDENTIALS="..." npm run migrate:pos
-```
-
-Para cargar datos ficticios de Café Aurora, sin reemplazar filas existentes:
-
-```bash
-SPREADSHEET_ID="..." GOOGLE_CREDENTIALS="..." npm run seed:pos-demo
-```
-
-La primera fila de cada pestaña se valida antes de escribir.
+No se crean pestañas automáticamente para evitar modificar datos reales sin confirmar la cuenta de servicio. Crea estas pestañas y usa la primera fila como encabezado:
 
 | Pestaña | Encabezados |
 | --- | --- |
@@ -45,14 +33,6 @@ Todos los catálogos tienen CRUD bajo `/api/pos_<modulo>`. El flujo de venta usa
 ```text
 POST /api/pos/checkout
 ```
-
-Operaciones adicionales:
-
-- `GET /api/pos/inventory/low`
-- `POST /api/pos/inventory/adjust`
-- `POST /api/pos/caja/open`
-- `POST /api/pos/caja/expense`
-- `POST /api/pos/caja/close`
 
 La venta se crea como `Pendiente`, agrega detalle y movimientos de inventario, y cambia a `Confirmada` solo después de recibir confirmación de Google Sheets. Si falla, queda en `Error` y el frontend no muestra éxito.
 
@@ -79,12 +59,12 @@ La venta confirmada emite un evento con `record_id`, `previous_value`, `new_valu
 - No guardar PIN sin hash.
 - No subir `.env`, `credentials.json`, `GOOGLE_CREDENTIALS` ni tokens.
 - Confirmar permisos de la cuenta de servicio antes de crear pestañas.
-- El MVP incluye catálogo, carrito, cobro, cambio, inventario, ajustes, clientes, empleados, apertura/cierre de caja y reportes básicos.
+- El MVP incluye catálogo, carrito, cobro, cambio, inventario, clientes, empleados, caja visual y reportes básicos.
 - Quedan para la siguiente iteración: devoluciones autorizadas, impresión térmica, tickets por WhatsApp/correo, variantes y combos, importación CSV, PIN operativo, CFDI 4.0 y Mercado Pago real.
 
 ## Datos demo
 
-La carga demo está en `docs/LUMARK_POS_DEMO.csv` y también puede ejecutarse con `npm run seed:pos-demo`. Nunca se ejecuta durante el arranque del ERP.
+Precarga manualmente productos ficticios de `Café Aurora` después de crear las pestañas. No se ejecuta ninguna escritura automática sobre la hoja de producción.
 
 ## Rollback
 
