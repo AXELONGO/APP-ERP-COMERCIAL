@@ -1,4 +1,0 @@
-ID Producto,SKU,Codigo de barras,Nombre,Descripcion,Categoria ID,Marca,Proveedor,Tipo,Precio venta,Costo,Impuesto,Unidad,Foto URL,Stock minimo,Variantes JSON,Activo
-POS-PROD-0001,CAF-001,750000000001,Cafe americano,12 oz,POS-CAT-0001,Cafe Aurora,Proveedor demo,Producto,48,18,0,Pieza,,5,,Si
-POS-PROD-0002,CAF-002,750000000002,Capuchino,12 oz,POS-CAT-0001,Cafe Aurora,Proveedor demo,Producto,62,24,0,Pieza,,5,,Si
-POS-PROD-0003,CAF-003,750000000003,Pan de canela,Pieza,POS-CAT-0002,Cafe Aurora,Proveedor demo,Producto,42,15,0,Pieza,,8,,Si

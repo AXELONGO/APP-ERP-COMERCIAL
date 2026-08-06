@@ -273,9 +273,8 @@ function navigateTo(section) {
   };
   const btnAdd = document.getElementById('btnAdd');
   btnAdd.innerHTML = addLabels[section] || '+ Nuevo registro';
-  const isPOSSection = section === 'pos' || section.startsWith('pos_');
-  btnAdd.style.display = (section === 'dashboard' || section === 'tableros' || hasOwnCreateControl || isPOSSection) ? 'none' : 'inline-block';
-  document.getElementById('btnDeleteMode').style.display = section === 'dashboard' || isPOSSection ? 'none' : 'inline-block';
+  btnAdd.style.display = (section === 'dashboard' || section === 'tableros' || hasOwnCreateControl) ? 'none' : 'inline-block';
+  document.getElementById('btnDeleteMode').style.display = section === 'dashboard' ? 'none' : 'inline-block';
   if (isDeleteMode) toggleDeleteMode();
 
   const titles = {
@@ -290,14 +289,6 @@ function navigateTo(section) {
     archivos: ['Archivos', 'Documentos y archivos del negocio'],
     pagos_gastos: ['Pagos y Gastos', 'Control de ingresos y egresos'],
     correos: ['Correos', 'Campañas por Gmail para prospectos'],
-    pos: ['LUMARK POS', 'Cobro rápido y control de ventas'],
-    pos_productos: ['Productos POS', 'Catálogo del negocio'],
-    pos_inventario: ['Inventario POS', 'Existencias y movimientos'],
-    pos_clientes: ['Clientes POS', 'Clientes y lealtad'],
-    pos_empleados: ['Empleados POS', 'Roles y operación de caja'],
-    pos_caja: ['Caja POS', 'Aperturas, retiros y cortes'],
-    pos_reportes: ['Reportes POS', 'Ventas y rendimiento'],
-    pos_configuracion: ['Configuración POS', 'Preferencias del negocio'],
   };
   const [title, sub] = titles[section] || ['', ''];
   document.getElementById('pageTitle').textContent = title;
@@ -389,14 +380,6 @@ function loadSection(section) {
     archivos: loadArchivos,
     pagos_gastos: loadPagosGastos,
     correos: loadCorreos,
-    pos: loadPOSSales,
-    pos_productos: loadPOSProductsTable,
-    pos_inventario: loadPOSInventory,
-    pos_clientes: loadPOSClients,
-    pos_empleados: loadPOSEmployees,
-    pos_caja: loadPOSCash,
-    pos_reportes: loadPOSReports,
-    pos_configuracion: loadPOSConfiguration,
   };
   loaders[section]?.();
 }
@@ -2508,97 +2491,6 @@ window.addEventListener('message', function(e) {
     }
   }
 });
-
-// ── LUMARK POS ─────────────────────────────────────────────────────
-const posState = { products: [], cart: [], category: '' };
-const posMoney = value => Number(value || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-const posEscape = value => escapeDetailHtml(String(value ?? ''));
-const posProductId = product => product['ID Producto'] || '';
-const posProductName = product => product.Nombre || 'Producto sin nombre';
-
-async function loadPOSProducts() {
-  const response = await fetch(`${API}/api/pos_productos`);
-  if (!response.ok) throw new Error('No se pudo cargar el catálogo POS');
-  posState.products = await response.json();
-  document.getElementById('posProductCount').textContent = posState.products.length;
-  renderPOSProducts();
-  renderPOSCart();
-}
-
-function filterPOSProducts(query) { renderPOSProducts(query); }
-function renderPOSProducts(query = document.getElementById('posProductSearch')?.value || '') {
-  const grid = document.getElementById('posProductGrid');
-  if (!grid) return;
-  const needle = query.toLowerCase().trim();
-  const products = posState.products.filter(product => [product.Nombre, product.SKU, product['Codigo de barras'], product['Categoria ID']].join(' ').toLowerCase().includes(needle));
-  grid.innerHTML = products.length ? products.map(product => `<button class="pos-product-card" onclick="addPOSProduct('${posEscape(posProductId(product))}')"><span class="pos-product-icon"><i class="ph ph-cube"></i></span><b>${posEscape(posProductName(product))}</b><small>${posEscape(product.SKU || 'Sin SKU')}</small><strong>${posMoney(product['Precio venta'])}</strong></button>`).join('') : '<div class="pos-empty">No hay productos para mostrar.</div>';
-}
-
-function addPOSProduct(productId) {
-  const product = posState.products.find(item => String(posProductId(item)) === String(productId));
-  if (!product) return showToast('Producto no encontrado', true);
-  const existing = posState.cart.find(item => item.id === productId);
-  if (existing) existing.quantity += 1;
-  else posState.cart.push({ id: productId, product, quantity: 1 });
-  renderPOSCart();
-}
-function updatePOSCart(productId, delta) {
-  const item = posState.cart.find(entry => entry.id === productId);
-  if (!item) return;
-  item.quantity += delta;
-  if (item.quantity <= 0) posState.cart = posState.cart.filter(entry => entry.id !== productId);
-  renderPOSCart();
-}
-function clearPOSCart() { posState.cart = []; renderPOSCart(); }
-function posTotal() { return posState.cart.reduce((sum, item) => sum + Number(item.product['Precio venta'] || 0) * item.quantity, 0); }
-function updatePOSChange() {
-  const method = document.getElementById('posPaymentMethod')?.value;
-  const received = Number(document.getElementById('posCashReceived')?.value || 0);
-  const element = document.getElementById('posChange');
-  if (element) element.textContent = posMoney(method === 'Efectivo' ? Math.max(0, received - posTotal()) : 0);
-}
-function renderPOSCart() {
-  const container = document.getElementById('posCartItems');
-  if (!container) return;
-  const total = posTotal();
-  document.getElementById('posCartCount').textContent = posState.cart.reduce((sum, item) => sum + item.quantity, 0);
-  document.getElementById('posCartTotal').textContent = posMoney(total);
-  document.getElementById('posSubtotal').textContent = posMoney(total);
-  document.getElementById('posTotal').textContent = posMoney(total);
-  updatePOSChange();
-  container.innerHTML = posState.cart.length ? posState.cart.map(item => `<div class="pos-cart-item"><div><b>${posEscape(posProductName(item.product))}</b><small>${posMoney(item.product['Precio venta'])}</small></div><div><button onclick="updatePOSCart('${posEscape(item.id)}', -1)">−</button><b>${item.quantity}</b><button onclick="updatePOSCart('${posEscape(item.id)}', 1)">+</button></div></div>`).join('') : '<div class="pos-empty">Agrega productos para comenzar.</div>';
-}
-async function checkoutPOS() {
-  if (!posState.cart.length) return showToast('Agrega al menos un producto', true);
-  const button = document.querySelector('.pos-checkout');
-  button.disabled = true;
-  try {
-    const response = await fetch(`${API}/api/pos/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: posState.cart.map(item => ({ productoId: item.id, cantidad: item.quantity })), metodoPago: document.getElementById('posPaymentMethod').value, efectivoRecibido: Number(document.getElementById('posCashReceived').value || 0), actor: 'POS', correlacionId: `POS-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'No se pudo confirmar la venta');
-    clearPOSCart();
-    showToast(`Venta ${result.ventaId} confirmada`);
-  } catch (error) { showToast(error.message, true); }
-  finally { button.disabled = false; }
-}
-async function posLoadTable(endpoint, targetId, columns) {
-  const target = document.getElementById(targetId);
-  if (!target) return [];
-  try {
-    const response = await fetch(`${API}/api/${endpoint}`);
-    const rows = await response.json();
-    target.innerHTML = rows.length ? rows.map(row => `<tr>${columns.map(column => `<td>${posEscape(row[column] || '—')}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${columns.length}" class="pos-empty-cell">No hay registros.</td></tr>`;
-    return rows;
-  } catch (error) { target.innerHTML = `<tr><td colspan="${columns.length}" class="pos-empty-cell">${posEscape(error.message)}</td></tr>`; return []; }
-}
-async function loadPOSSales() { try { await loadPOSProducts(); } catch (error) { showToast(error.message, true); } }
-async function loadPOSProductsTable() { await posLoadTable('pos_productos', 'posProductsTable', ['SKU', 'Nombre', 'Categoria ID', 'Precio venta', 'Activo']); }
-async function loadPOSInventory() { await posLoadTable('pos_inventario', 'posInventoryTable', ['Producto ID', 'Tipo', 'Cantidad', 'Stock actual', 'Motivo', 'Fecha']); }
-async function loadPOSClients() { await posLoadTable('pos_clientes', 'posClientsTable', ['Nombre', 'Telefono', 'Correo', 'Puntos', 'Segmento']); }
-async function loadPOSEmployees() { await posLoadTable('pos_empleados', 'posEmployeesTable', ['Nombre', 'Rol', 'Activo', 'Fecha de registro']); }
-async function loadPOSCash() { /* La apertura y corte se gestionan por POS_CorteCaja. */ }
-async function loadPOSReports() { const rows = await posLoadTable('pos_ventas', 'posReportsTable', ['Estado', 'Total', 'Metodo de pago', 'Fecha']); const confirmed = rows.filter(row => row.Estado === 'Confirmada'); document.getElementById('posReportSales').textContent = confirmed.length; document.getElementById('posReportTotal').textContent = posMoney(confirmed.reduce((sum, row) => sum + Number(row.Total || 0), 0)); }
-async function loadPOSConfiguration() {}
 
 // ── TABLEROS UNIFICADOS ───────────────────────────────────────────
 let currentTablero = 'pipeline';
