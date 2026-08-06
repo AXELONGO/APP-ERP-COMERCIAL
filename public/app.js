@@ -1,5 +1,7 @@
 // ── GLOBALS ───────────────────────────────────────────────────────
-const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:3000' : '';
+// The UI is served by the same Express process in local and hosted environments.
+// Using a relative API avoids sending local requests to the wrong port/container.
+const API = '';
 let currentSection = 'dashboard';
 
 function renderBarChart(canvasId, dataObj, labelStr, colorHex) {
@@ -741,10 +743,10 @@ function legacyPipelineFallback(key) {
   return { pipeline_id: `PIPE-${key.toUpperCase()}`, key, name: source.name, entity_type: key, version: 1, status: 'published', active: true, stages, transitions: stages.flatMap(from => stages.filter(to => to.stage_id !== from.stage_id).map(to => ({ from_stage_id: from.stage_id, to_stage_id: to.stage_id, active: true }))) };
 }
 
-async function loadPipelineConfig(key) {
-  if (window.pipelineConfigs[key]) return window.pipelineConfigs[key];
+async function loadPipelineConfig(key, refresh = false) {
+  if (!refresh && window.pipelineConfigs[key]) return window.pipelineConfigs[key];
   try {
-    const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(key)}`);
+    const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(key)}?t=${Date.now()}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const pipeline = await response.json();
     window.pipelineConfigs[key] = pipeline;
@@ -804,6 +806,8 @@ function bindDynamicBoardDrag(board) {
     try { dragData = JSON.parse(event.dataTransfer.getData('text/plain')); } catch (_) { return; }
     const pipelineKey = board.dataset.pipelineKey;
     if (!pipelineKey || !dragData?.id || !column.dataset.stageId) return;
+    if (board.dataset.transitionPending === 'true') return;
+    board.dataset.transitionPending = 'true';
     try {
       const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(pipelineKey)}/transition`, {
         method: 'POST',
@@ -814,10 +818,12 @@ function bindDynamicBoardDrag(board) {
       if (!response.ok) throw new Error(result.error || 'Transición no permitida');
       synchronizeLocalPipelineRecord(dragData, result);
       showToast('Movimiento guardado');
-      loadTableroView(currentTablero);
+       await loadTableroView(currentTablero);
     } catch (error) {
       showToast(error.message, true);
-      loadTableroView(currentTablero);
+      await loadTableroView(currentTablero);
+    } finally {
+      delete board.dataset.transitionPending;
     }
   });
 }
@@ -2498,7 +2504,29 @@ let currentTablero = 'pipeline';
 function loadTableros() {
   const sel = document.getElementById('tableroSelector');
   currentTablero = sel ? sel.value : 'pipeline';
-  loadTableroView(currentTablero);
+  loadAvailablePipelines().finally(() => loadTableroView(currentTablero));
+}
+
+async function loadAvailablePipelines() {
+  const selector = document.getElementById('tableroSelector');
+  if (!selector) return;
+  try {
+    const response = await fetch(`${API}/api/pipelines?t=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) return;
+    const definitions = await response.json();
+    const builtIn = new Set(['proyectos', 'prospectos', 'tareas']);
+    selector.querySelectorAll('option[data-custom-pipeline="true"]').forEach(option => option.remove());
+    definitions.filter(definition => !builtIn.has(definition.key)).forEach(definition => {
+      const option = document.createElement('option');
+      option.value = `custom:${definition.key}`;
+      option.dataset.customPipeline = 'true';
+      option.textContent = `${definition.name} · ${definition.entity_type}`;
+      selector.appendChild(option);
+    });
+    if ([...selector.options].some(option => option.value === currentTablero)) selector.value = currentTablero;
+  } catch (_) {
+    // The built-in boards remain usable with the local fallback.
+  }
 }
 
 function openTareaModal() {
@@ -2529,8 +2557,21 @@ function openTareaModal() {
   });
 }
 
-function loadTableroView(name) {
+async function loadTableroView(name) {
   document.querySelectorAll('.tablero-panel').forEach(p => p.classList.add('hidden'));
+  if (name.startsWith('custom:')) {
+    const panel = document.getElementById('tablero-pipeline');
+    if (panel) panel.classList.remove('hidden');
+    const pipelineKey = name.slice('custom:'.length);
+    const pipeline = await loadPipelineConfig(pipelineKey, true);
+    const entityType = pipeline?.entity_type || 'proyectos';
+    const config = PIPELINE_BOARD_CONFIG[entityType];
+    if (pipeline && config) {
+      const records = await fetch(`${API}/api/${entityType}?t=${Date.now()}`, { cache: 'no-store' }).then(response => response.json()).catch(() => []);
+      renderDynamicKanban(pipeline, records, { ...config, boardId: 'kanban-pipeline' });
+    }
+    return;
+  }
   const panel = document.getElementById('tablero-' + name);
   if (panel) panel.classList.remove('hidden');
 
@@ -2539,7 +2580,7 @@ function loadTableroView(name) {
     'pipeline-prospectos': loadPipelineProspectos,
     'tareas': loadTareas,
   };
-  loaders[name]?.();
+  if (loaders[name]) await loaders[name]();
 }
 
 function switchTablero(value) {
@@ -2554,7 +2595,7 @@ function filterTablero(query) {
     'pipeline-prospectos': 'kanban-pipeline-prospectos',
     'tareas': 'kanban-tareas',
   };
-  const boardId = boardIds[currentTablero];
+  const boardId = currentTablero.startsWith('custom:') ? 'kanban-pipeline' : boardIds[currentTablero];
   if (boardId) filterKanban(boardId, query);
 }
 
@@ -2725,14 +2766,48 @@ function renderPipelineEditor() {
     <div class="pipeline-editor-footer"><button class="btn btn-outline" onclick="publishPipelineEditor()">Publicar versión</button><button class="btn btn-primary" onclick="savePipelineEditor()">Guardar configuración</button></div>`;
 }
 
-async function openPipelineManager() {
+function openNewPipelineForm() {
+  openModal('Crear nuevo pipeline', `<form onsubmit="createPipelineFromForm(event)">
+    <p class="text-muted" style="margin-bottom:16px;">Crea un tablero independiente. Después podrás agregar etapas, pasos y reglas.</p>
+    <div class="form-grid">
+      <div class="form-group"><label>Clave interna</label><input name="key" required pattern="[a-z0-9][a-z0-9_-]{1,60}" placeholder="ej. ventas_locales"></div>
+      <div class="form-group"><label>Nombre visible</label><input name="name" required placeholder="Ej. Pipeline de ventas"></div>
+      <div class="form-group"><label>Tipo de registros</label><select name="entity_type"><option value="proyectos">Proyectos</option><option value="prospectos">Prospectos</option><option value="tareas">Tareas</option></select></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;"><button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" type="submit">Crear pipeline</button></div>
+  </form>`);
+}
+
+async function createPipelineFromForm(event) {
+  event.preventDefault();
+  const form = event.target;
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  const key = form.key.value.trim().toLowerCase();
+  const entityType = form.entity_type.value;
+  try {
+    const response = await fetch(`${API}/api/pipelines`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Name': 'Administrador', 'X-Source': 'pipeline_creator' }, body: JSON.stringify({
+      key, name: form.name.value.trim(), entity_type: entityType, status: 'draft', active: true,
+      stages: [{ stage_id: `STG-${Date.now()}`, stage_key: 'inicio', name: 'Inicio', type: 'stage', order_index: 0, active: true, is_initial: true, is_terminal: false, legacy_value: entityType === 'tareas' ? 'Pendiente' : entityType === 'prospectos' ? 'Nuevo' : '1', conditions: [], actions: [], steps: [] }],
+      transitions: []
+    }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'No se pudo crear el pipeline');
+    closeModal();
+    showToast('Pipeline creado como borrador');
+    await openPipelineManager(result.key || key);
+  } catch (error) { showToast(error.message, true); button.disabled = false; }
+}
+
+async function openPipelineManager(preferredKey = null) {
   try {
     const response = await fetch(`${API}/api/pipelines`);
     const definitions = await response.json();
     window.pipelineEditorState.definitions = Object.fromEntries(definitions.map(definition => [definition.key, JSON.parse(JSON.stringify(definition))]));
     window.pipelineEditorState.invalidJson = false;
-    window.pipelineEditorState.selectedKey = currentTablero === 'pipeline-prospectos' ? 'prospectos' : currentTablero === 'tareas' ? 'tareas' : 'proyectos';
-    const selector = `<div class="form-group"><label>Pipeline</label><select id="pipelineEditorSelect" onchange="window.pipelineEditorState.selectedKey=this.value;renderPipelineEditor()">${definitions.map(definition => `<option value="${escapeDetailHtml(definition.key)}" ${definition.key === window.pipelineEditorState.selectedKey ? 'selected' : ''}>${escapeDetailHtml(definition.name)}</option>`).join('')}</select></div><div id="pipelineEditorBody"></div>`;
+    const defaultKey = currentTablero === 'pipeline-prospectos' ? 'prospectos' : currentTablero === 'tareas' ? 'tareas' : 'proyectos';
+    window.pipelineEditorState.selectedKey = preferredKey && window.pipelineEditorState.definitions[preferredKey] ? preferredKey : defaultKey;
+    const selector = `<div class="pipeline-manager-header"><div class="form-group" style="flex:1"><label>Pipeline activo</label><select id="pipelineEditorSelect" onchange="window.pipelineEditorState.selectedKey=this.value;renderPipelineEditor()">${definitions.map(definition => `<option value="${escapeDetailHtml(definition.key)}" ${definition.key === window.pipelineEditorState.selectedKey ? 'selected' : ''}>${escapeDetailHtml(definition.name)} · ${escapeDetailHtml(definition.entity_type)}</option>`).join('')}</select></div><button class="btn btn-primary" type="button" onclick="openNewPipelineForm()"><i class="ph ph-plus"></i> Nuevo pipeline</button></div><p class="pipeline-manager-help">Edita etapas en borrador, guarda y después publica para que el tablero las utilice.</p><div id="pipelineEditorBody"></div>`;
     openModal('Configurar pipeline dinámico', selector);
     renderPipelineEditor();
   } catch (error) {
@@ -2758,7 +2833,8 @@ async function savePipelineEditor() {
   if (!result) return;
   closeModal();
   showToast('Configuración guardada');
-  loadTableroView(currentTablero);
+  delete window.pipelineConfigs[window.pipelineEditorState.selectedKey];
+  await loadTableroView(currentTablero);
 }
 
 async function publishPipelineEditor() {
@@ -2772,6 +2848,7 @@ async function publishPipelineEditor() {
   window.pipelineConfigs[key] = result;
   renderPipelineEditor();
   showToast('Nueva versión publicada');
+  await loadTableroView(currentTablero);
 }
 
 // ── PAGOS Y GASTOS ────────────────────────────────────────────────

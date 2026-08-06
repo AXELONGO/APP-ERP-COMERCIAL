@@ -1713,6 +1713,9 @@ tbody tr:hover {
   justify-content: space-between;
 }
 
+.pipeline-manager-header { display:flex; align-items:flex-end; gap:12px; margin-bottom:8px; }
+.pipeline-manager-help { margin:0 0 16px; padding:10px 12px; border:1px solid #dbeafe; border-radius:8px; background:#eff6ff; color:#475569; font-size:12px; }
+
 @media (max-width: 640px) {
   .ai-communication-modal {
     width: 100%;
@@ -1722,4 +1725,6 @@ tbody tr:hover {
   .ai-result-columns {
     grid-template-columns: 1fr;
   }
+
+  .pipeline-manager-header { align-items:stretch; flex-direction:column; }
 }
