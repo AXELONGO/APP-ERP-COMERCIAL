@@ -96,6 +96,15 @@
         <a href="#" class="nav-item" data-section="pagos_gastos" id="nav-pagos_gastos">
           <span class="nav-icon"><i class="ph ph-currency-circle-dollar"></i></span><span>Pagos y Gastos</span>
         </a>
+        <div class="nav-section-label pos-nav-label">LUMARK POS</div>
+        <a href="#" class="nav-item" data-section="pos" id="nav-pos"><span class="nav-icon"><i class="ph ph-shopping-cart"></i></span><span>Ventas POS</span></a>
+        <a href="#" class="nav-item" data-section="pos_productos" id="nav-pos_productos"><span class="nav-icon"><i class="ph ph-package"></i></span><span>Productos</span></a>
+        <a href="#" class="nav-item" data-section="pos_inventario" id="nav-pos_inventario"><span class="nav-icon"><i class="ph ph-archive"></i></span><span>Inventario</span></a>
+        <a href="#" class="nav-item" data-section="pos_clientes" id="nav-pos_clientes"><span class="nav-icon"><i class="ph ph-identification-card"></i></span><span>Clientes</span></a>
+        <a href="#" class="nav-item" data-section="pos_empleados" id="nav-pos_empleados"><span class="nav-icon"><i class="ph ph-user-gear"></i></span><span>Empleados</span></a>
+        <a href="#" class="nav-item" data-section="pos_caja" id="nav-pos_caja"><span class="nav-icon"><i class="ph ph-cash-register"></i></span><span>Caja</span></a>
+        <a href="#" class="nav-item" data-section="pos_reportes" id="nav-pos_reportes"><span class="nav-icon"><i class="ph ph-chart-line-up"></i></span><span>Reportes</span></a>
+        <a href="#" class="nav-item" data-section="pos_configuracion" id="nav-pos_configuracion"><span class="nav-icon"><i class="ph ph-sliders-horizontal"></i></span><span>Configuración</span></a>
       </nav>
 
   <div class="sidebar-footer">
@@ -501,6 +510,19 @@
     </div>
   </section>
 
+  <!-- ── LUMARK POS ───────────────────────────────────────────── -->
+  <section class="section hidden pos-section" id="section-pos">
+    <div class="pos-kpis"><div><span>Productos</span><strong id="posProductCount">0</strong></div><div><span>Carrito</span><strong id="posCartCount">0</strong></div><div class="gold"><span>Total</span><strong id="posCartTotal">$0.00</strong></div></div>
+    <div class="pos-layout"><div class="pos-panel"><div class="pos-panel-head"><div><small>LUMARK POS</small><h2>Cobro rápido</h2></div><span class="pos-live">● En línea</span></div><input class="pos-search" id="posProductSearch" placeholder="Buscar por nombre, SKU o código de barras..." oninput="filterPOSProducts(this.value)"><div class="pos-categories" id="posCategoryRow"></div><div class="pos-products" id="posProductGrid"><div class="pos-empty">Cargando productos...</div></div></div><aside class="pos-panel pos-cart"><div class="pos-panel-head"><div><small>TICKET ACTUAL</small><h2>Carrito</h2></div><button class="btn btn-outline" onclick="clearPOSCart()">Limpiar</button></div><div id="posCartItems" class="pos-cart-items"><div class="pos-empty">Agrega productos para comenzar.</div></div><div class="pos-summary"><div><span>Subtotal</span><b id="posSubtotal">$0.00</b></div><div class="pos-total"><span>Total</span><b id="posTotal">$0.00</b></div><label>Método de pago</label><select id="posPaymentMethod" onchange="updatePOSChange()"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option><option>Mercado Pago</option><option>Mixto</option></select><label>Efectivo recibido</label><input id="posCashReceived" type="number" min="0" step="0.01" value="0" oninput="updatePOSChange()"><div class="pos-change">Cambio <b id="posChange">$0.00</b></div><button class="btn btn-primary pos-checkout" onclick="checkoutPOS()">Confirmar venta</button></div></aside></div>
+  </section>
+  <section class="section hidden pos-section" id="section-pos_productos"><div class="pos-panel"><div class="pos-panel-head"><div><small>CATÁLOGO</small><h2>Productos</h2></div></div><div class="pos-table-wrap"><table class="pos-table"><thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Precio</th><th>Activo</th></tr></thead><tbody id="posProductsTable"></tbody></table></div></div></section>
+  <section class="section hidden pos-section" id="section-pos_inventario"><div class="pos-panel"><div class="pos-panel-head"><div><small>EXISTENCIAS</small><h2>Inventario</h2></div></div><div class="pos-table-wrap"><table class="pos-table"><thead><tr><th>Producto</th><th>Movimiento</th><th>Cantidad</th><th>Stock</th><th>Motivo</th><th>Fecha</th></tr></thead><tbody id="posInventoryTable"></tbody></table></div></div></section>
+  <section class="section hidden pos-section" id="section-pos_clientes"><div class="pos-panel"><div class="pos-panel-head"><div><small>CLIENTES</small><h2>Clientes POS</h2></div></div><div class="pos-table-wrap"><table class="pos-table"><thead><tr><th>Nombre</th><th>Teléfono</th><th>Correo</th><th>Puntos</th><th>Segmento</th></tr></thead><tbody id="posClientsTable"></tbody></table></div></div></section>
+  <section class="section hidden pos-section" id="section-pos_empleados"><div class="pos-panel"><div class="pos-panel-head"><div><small>EQUIPO</small><h2>Empleados POS</h2></div></div><div class="pos-table-wrap"><table class="pos-table"><thead><tr><th>Nombre</th><th>Rol</th><th>Activo</th><th>Registro</th></tr></thead><tbody id="posEmployeesTable"></tbody></table></div></div></section>
+  <section class="section hidden pos-section" id="section-pos_caja"><div class="pos-panel"><div class="pos-panel-head"><div><small>EFECTIVO</small><h2>Corte de caja</h2></div></div><div class="pos-empty">La apertura, retiros y corte se gestionan en POS_CorteCaja. La facturación CFDI está <b>Próximamente</b>.</div></div></section>
+  <section class="section hidden pos-section" id="section-pos_reportes"><div class="pos-kpis"><div><span>Ventas confirmadas</span><strong id="posReportSales">0</strong></div><div class="gold"><span>Ingresos</span><strong id="posReportTotal">$0.00</strong></div></div><div class="pos-panel"><div class="pos-panel-head"><div><small>RESUMEN</small><h2>Reportes POS</h2></div></div><div class="pos-table-wrap"><table class="pos-table"><thead><tr><th>Estado</th><th>Total</th><th>Método</th><th>Fecha</th></tr></thead><tbody id="posReportsTable"></tbody></table></div></div></section>
+  <section class="section hidden pos-section" id="section-pos_configuracion"><div class="pos-panel"><div class="pos-panel-head"><div><small>CONFIGURACIÓN</small><h2>LUMARK POS</h2></div></div><div class="pos-config"><div><b>Moneda</b><span>MXN</span></div><div><b>Zona horaria</b><span>America/Mexico_City</span></div><div><b>Facturación</b><span>Próximamente</span></div><div><b>Hardware</b><span>Lector y cajón próximamente</span></div></div></div></section>
+
   <!-- ── CORREOS ─────────────────────────────────────────────── -->
   <section class="section hidden" id="section-correos">
     <div id="correoAuthStatus" style="margin-bottom:16px;"></div>
@@ -827,6 +849,6 @@
 </style>
 
 <script src="webhooks.js?v=2"></script>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
