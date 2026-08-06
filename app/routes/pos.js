@@ -126,6 +126,72 @@ function registerPosRoutes(app) {
     await sendInformationEvent({ category: 'pos', module: 'ventas', event_type: 'pos.venta.confirmada', trigger_source: 'checkout', record_id: saleId, previous_value: 'Pendiente', new_value: 'Confirmada', actor: actorFromRequest(req), persistence_result: 'confirmed', correlation_id: correlacionId, data: result });
     res.json(result);
   }));
+
+  app.get('/api/pos/inventory/low', asyncHandler(async (req, res) => {
+    const [products, movements] = await Promise.all([getPublicData('POS_Productos'), getPublicData('POS_Inventario')]);
+    const latest = new Map();
+    movements.forEach(move => latest.set(move['Producto ID'], Number(move['Stock actual'] || 0)));
+    res.json(products.filter(product => Number(latest.get(product['ID Producto']) || 0) <= Number(product['Stock minimo'] || 0)).map(product => ({
+      id: product['ID Producto'], nombre: product.Nombre, stock: latest.get(product['ID Producto']) || 0, minimo: Number(product['Stock minimo'] || 0)
+    })));
+  }));
+
+  app.post('/api/pos/inventory/adjust', asyncHandler(async (req, res) => {
+    const { productoId, cantidad, motivo, actor = 'POS' } = req.body || {};
+    const delta = Number(cantidad);
+    if (!productoId || !Number.isFinite(delta) || delta === 0 || !String(motivo || '').trim()) return res.status(400).json({ error: 'productoId, cantidad distinta de cero y motivo son obligatorios' });
+    const products = await getPublicData('POS_Productos');
+    if (!products.some(product => product['ID Producto'] === productoId)) return res.status(404).json({ error: 'Producto no encontrado' });
+    const movements = await getPublicData('POS_Inventario');
+    const previous = [...movements].reverse().find(move => move['Producto ID'] === productoId);
+    const stockBefore = Number(previous?.['Stock actual'] || 0);
+    const stockAfter = stockBefore + delta;
+    if (stockAfter < 0) return res.status(409).json({ error: 'El ajuste no puede dejar inventario negativo' });
+    const sheets = await getSheets();
+    const movementId = await nextId(sheets, POS_SHEETS.inventario);
+    await appendRow(sheets, POS_SHEETS.inventario.sheet, [movementId, productoId, 'Ajuste', delta, stockBefore, stockAfter, motivo, '', actor, new Date().toISOString()]);
+    res.status(201).json({ success: true, id: movementId, stockActual: stockAfter });
+  }));
+
+  app.post('/api/pos/caja/open', asyncHandler(async (req, res) => {
+    const rows = await getPublicData('POS_CorteCaja');
+    if (rows.some(row => row.Estado === 'Abierta')) return res.status(409).json({ error: 'Ya existe una caja abierta' });
+    const initialCash = Number(req.body?.efectivoInicial || 0);
+    if (!Number.isFinite(initialCash) || initialCash < 0) return res.status(400).json({ error: 'El efectivo inicial no es valido' });
+    const sheets = await getSheets();
+    const id = await nextId(sheets, POS_SHEETS.cortecaja);
+    const now = new Date().toISOString();
+    await appendRow(sheets, POS_SHEETS.cortecaja.sheet, [id, 'Abierta', now, '', 0, 0, 0, initialCash, 0, 0]);
+    void sendInformationEvent({ category: 'pos', module: 'caja', event_type: 'pos.caja.abierta', record_id: id, new_value: 'Abierta', actor: actorFromRequest(req), persistence_result: 'confirmed' });
+    res.status(201).json({ success: true, id, estado: 'Abierta' });
+  }));
+
+  app.post('/api/pos/caja/expense', asyncHandler(async (req, res) => {
+    const { cajaId, concepto, monto, motivo, actor = 'POS' } = req.body || {};
+    const amount = Number(monto);
+    if (!cajaId || !concepto || !motivo || !Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Caja, concepto, monto y motivo son obligatorios' });
+    const sheets = await getSheets();
+    const id = await nextId(sheets, POS_SHEETS.gastos);
+    await appendRow(sheets, POS_SHEETS.gastos.sheet, [id, cajaId, concepto, amount, motivo, actor, new Date().toISOString()]);
+    res.status(201).json({ success: true, id });
+  }));
+
+  app.post('/api/pos/caja/close', asyncHandler(async (req, res) => {
+    const { cajaId, efectivoContado } = req.body || {};
+    const counted = Number(efectivoContado);
+    if (!cajaId || !Number.isFinite(counted) || counted < 0) return res.status(400).json({ error: 'Caja y efectivo contado son obligatorios' });
+    const sheets = await getSheets();
+    const rowNumber = await findRowById(sheets, POS_SHEETS.cortecaja.sheet, cajaId);
+    if (rowNumber < 1) return res.status(404).json({ error: 'Caja no encontrada' });
+    const current = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `'${POS_SHEETS.cortecaja.sheet}'!A${rowNumber}:J${rowNumber}` });
+    const row = current.data.values?.[0] || [];
+    if (row[1] !== 'Abierta') return res.status(409).json({ error: 'La caja ya esta cerrada' });
+    const expected = Number(row[7] || 0);
+    row[1] = 'Cerrada'; row[3] = new Date().toISOString(); row[8] = counted; row[9] = counted - expected;
+    await updateRow(sheets, POS_SHEETS.cortecaja.sheet, cajaId, row);
+    void sendInformationEvent({ category: 'pos', module: 'caja', event_type: 'pos.caja.cerrada', record_id: cajaId, previous_value: 'Abierta', new_value: 'Cerrada', actor: actorFromRequest(req), persistence_result: 'confirmed', data: { diferencia: row[9] } });
+    res.json({ success: true, id: cajaId, diferencia: row[9] });
+  }));
 }
 
 module.exports = { registerPosRoutes, POS_SHEETS };

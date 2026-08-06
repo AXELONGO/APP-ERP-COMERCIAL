@@ -8,6 +8,8 @@
     "test:pipeline": "node scripts/test/test_pipeline_validation.js",
     "test:communication": "node scripts/test/test_communication_agent.js",
     "migrate:pipelines": "node scripts/migrations/migrate_dynamic_pipelines.js",
+    "migrate:pos": "node scripts/migrations/create_pos_schema.js",
+    "seed:pos-demo": "node scripts/migrations/create_pos_schema.js --seed-demo",
     "test": "npm run test:communication && npm run test:pipeline"
   },
   "keywords": [],
