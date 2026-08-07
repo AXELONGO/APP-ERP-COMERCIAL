@@ -20,6 +20,18 @@ assert.strictEqual(defaults[2].stages.length, 3);
 const valid = validatePipelineDefinition(defaults[0]);
 assert.strictEqual(valid.stages.filter(stage => stage.is_initial && stage.active).length, 1);
 
+const createdPipeline = validatePipelineDefinition({
+  key: 'ventas_locales', name: 'Ventas locales', entity_type: 'proyectos', status: 'published', active: true,
+  stages: [
+    { stage_id: 'STG-NEW-1', stage_key: 'nuevo', name: 'Nuevo', legacy_value: '1', is_initial: true },
+    { stage_id: 'STG-NEW-2', stage_key: 'cerrado', name: 'Cerrado', legacy_value: '2', is_terminal: true }
+  ],
+  transitions: [{ transition_id: 'TR-NEW-1', from_stage_id: 'STG-NEW-1', to_stage_id: 'STG-NEW-2' }]
+});
+assert.strictEqual(createdPipeline.status, 'published');
+assert.strictEqual(createdPipeline.stages.length, 2);
+assert.strictEqual(createdPipeline.transitions.length, 1);
+
 expectFailure(() => validatePipelineDefinition({ ...valid, key: 'Pipeline inválido' }), 'key debe usar');
 expectFailure(() => validatePipelineDefinition({ ...valid, stages: valid.stages.map(stage => ({ ...stage, stage_key: 'duplicada' })) }), 'stage_key duplicada');
 expectFailure(() => validatePipelineDefinition({ ...valid, transitions: [{ from_stage_id: 'missing', to_stage_id: valid.stages[0].stage_id }] }), 'etapa inexistente');

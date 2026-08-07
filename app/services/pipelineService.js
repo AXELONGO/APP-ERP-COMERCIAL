@@ -23,6 +23,7 @@ const CONFIG_SHEETS = {
   versions: 'Pipeline Versiones',
   audit: 'Pipeline Auditoria'
 };
+const transitionLocks = new Map();
 
 const HEADERS = {
   pipelines: ['pipeline_id', 'key', 'name', 'entity_type', 'version', 'status', 'active', 'created_at', 'updated_at', 'created_by', 'updated_by'],
@@ -598,7 +599,7 @@ async function updateRecordField(sheets, recordType, recordId, field, value) {
   await sheets.spreadsheets.values.update({ spreadsheetId: SPREADSHEET_ID, range: `'${mapping.sheet}'!${columnLetter(index)}${rowNumber}`, valueInputOption: 'RAW', requestBody: { values: [[value ?? '']] } });
 }
 
-async function transitionRecord({ pipelineKey, recordType, recordId, toStageId, toStepId = null, actor = null, source = 'api', expectedStateVersion = null }) {
+async function transitionRecordUnsafe({ pipelineKey, recordType, recordId, toStageId, toStepId = null, actor = null, source = 'api', expectedStateVersion = null }) {
   const definition = rechainTransitions(await getPipeline(pipelineKey));
   if (definition.entity_type !== recordType) throw validationError(`El pipeline ${definition.key} no acepta registros de tipo ${recordType}`, 422);
   if (!definition.active || definition.status !== 'published') throw validationError('El pipeline no está publicado y activo', 409);
@@ -630,14 +631,44 @@ async function transitionRecord({ pipelineKey, recordType, recordId, toStageId, 
     context.action_results = actionResults;
   }
   const legacy = target.legacy_value || target.stage_key;
-  await updateLegacyField(sheets, recordType, recordId, legacy);
+  const previousStage = definition.stages.find(stage => stage.stage_id === previous.stage_id);
   const timestamp = now();
   const state = { ...previous, stage_id: target.stage_id, step_id: nextStepId, pipeline_version: definition.version, state_version: Number(previous.state_version || 0) + 1, entered_at: previous.stage_id === target.stage_id ? previous.entered_at : timestamp, updated_at: timestamp, updated_by: actorName(actor) };
-  await saveState(sheets, state);
-  if (previous.stage_id !== target.stage_id || previous.step_id !== nextStepId) {
-    await saveAudit(sheets, { pipelineId: definition.pipeline_id, targetType: 'state', targetId: recordId, changeType: 'transition', actor, source, diff: { from_stage_id: previous.stage_id, to_stage_id: target.stage_id, from_step_id: previous.step_id, to_step_id: nextStepId }, previousVersion: previous.state_version, newVersion: state.state_version });
+  try {
+    await updateLegacyField(sheets, recordType, recordId, legacy);
+    await saveState(sheets, state);
+  } catch (error) {
+    if (previousStage) {
+      await updateLegacyField(sheets, recordType, recordId, previousStage.legacy_value || previousStage.stage_key).catch(rollbackError => {
+        console.error('[Pipeline] No se pudo restaurar la etapa anterior:', rollbackError.message);
+      });
+    }
+    throw error;
   }
-  return { state, stage: target, pipeline: definition, actions: actionResults };
+  if (previous.stage_id !== target.stage_id || previous.step_id !== nextStepId) {
+    try {
+      await saveAudit(sheets, { pipelineId: definition.pipeline_id, targetType: 'state', targetId: recordId, changeType: 'transition', actor, source, diff: { from_stage_id: previous.stage_id, to_stage_id: target.stage_id, from_step_id: previous.step_id, to_step_id: nextStepId }, previousVersion: previous.state_version, newVersion: state.state_version });
+    } catch (auditError) {
+      console.error('[Pipeline] Estado guardado, pero falló la auditoría:', auditError.message);
+      void sendInformationEvent({ category: 'bug', module: 'pipeline', event_type: 'pipeline.audit_failed', record_id: recordId, data: { pipeline_id: definition.pipeline_id, error: auditError.message } });
+    }
+  }
+  return { success: true, persisted: true, state, stage: target, pipeline: definition, actions: actionResults };
+}
+
+async function transitionRecord(args) {
+  const lockKey = `${args.pipelineKey}:${args.recordType}:${args.recordId}`;
+  const previous = transitionLocks.get(lockKey) || Promise.resolve();
+  let release;
+  const current = new Promise(resolve => { release = resolve; });
+  transitionLocks.set(lockKey, current);
+  await previous;
+  try {
+    return await transitionRecordUnsafe(args);
+  } finally {
+    release();
+    if (transitionLocks.get(lockKey) === current) transitionLocks.delete(lockKey);
+  }
 }
 
 async function removeStage(reference, stageId, { successorStageId = null, actor = null, source = 'api' } = {}) {
