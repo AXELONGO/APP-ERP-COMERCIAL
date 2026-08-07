@@ -1,5 +1,5 @@
 const asyncHandler = require('../middleware/asyncHandler');
-const { getSheets, getPublicData, findRowById, getSheetId, SPREADSHEET_ID } = require('../config/sheets');
+const { getSheets, getPublicData, invalidatePublicData, findRowById, getSheetId, SPREADSHEET_ID } = require('../config/sheets');
 const { getPipeline, validateLegacyStageChange, recordLegacyStageChange } = require('../services/pipelineService');
 
 const PREFIX_MAP = {
@@ -79,6 +79,7 @@ function crudRoutes(app, sheetName, range, mapper, customEndpoint, options = {})
       resource: { values: [row] },
     });
     await recordPipelineField(req, nextId);
+    invalidatePublicData(sheetName);
     res.json({ success: true, id: nextId });
   }));
 
@@ -109,6 +110,7 @@ function crudRoutes(app, sheetName, range, mapper, customEndpoint, options = {})
       resource: { values: [row] },
     });
     await recordPipelineField(req, req.params.id);
+    invalidatePublicData(sheetName);
     res.json({ success: true });
   }));
 
@@ -127,6 +129,7 @@ function crudRoutes(app, sheetName, range, mapper, customEndpoint, options = {})
         }]
       }
     });
+    invalidatePublicData(sheetName);
     res.json({ success: true });
   }));
 }

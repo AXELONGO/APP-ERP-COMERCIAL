@@ -825,16 +825,10 @@ function bindDynamicBoardDrag(board) {
 }
 
 async function transitionPipelineRecord(pipelineKey, recordType, recordId, stageId, source = 'pipeline_frontend') {
-  let expectedStateVersion;
-  const stateResponse = await fetch(`${API}/api/pipelines/${encodeURIComponent(pipelineKey)}/states/${encodeURIComponent(recordType)}/${encodeURIComponent(recordId)}?t=${Date.now()}`, { cache: 'no-store' });
-  if (stateResponse.ok) {
-    const state = await stateResponse.json();
-    expectedStateVersion = Number(state.state_version || 0);
-  }
   const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(pipelineKey)}/transition`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Source': source },
-    body: JSON.stringify({ record_type: recordType, record_id: recordId, to_stage_id: stageId, expected_state_version: expectedStateVersion })
+    body: JSON.stringify({ record_type: recordType, record_id: recordId, to_stage_id: stageId })
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || 'Transición no permitida; recarga el tablero e inténtalo de nuevo');

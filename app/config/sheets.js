@@ -3,6 +3,9 @@ const path = require('path');
 const fs = require('fs');
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1ZCCirL1JXtQ7UIxcxZN9i6y716xY8NgEEQC3QmJu5gI';
+const PUBLIC_DATA_TTL_MS = 5000;
+const publicDataCache = new Map();
+const publicDataRequests = new Map();
 
 async function getSheets() {
   let authOptions = {
@@ -49,6 +52,20 @@ async function getSheets() {
 }
 
 async function getPublicData(sheetName) {
+  const cached = publicDataCache.get(sheetName);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+  if (publicDataRequests.has(sheetName)) return publicDataRequests.get(sheetName);
+
+  const request = fetchPublicData(sheetName);
+  publicDataRequests.set(sheetName, request);
+  try {
+    return await request;
+  } finally {
+    publicDataRequests.delete(sheetName);
+  }
+}
+
+async function fetchPublicData(sheetName) {
   const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}&cachebust=${Date.now()}`;
   const res = await fetch(url, { cache: 'no-store' });
   const text = await res.text();
@@ -57,7 +74,7 @@ async function getPublicData(sheetName) {
 
   const headers = data.table.cols.map(c => c.label || '');
 
-  return (data.table.rows || [])
+  const result = (data.table.rows || [])
     .filter(r => r.c && r.c.some(cell => cell && cell.v !== null && cell.v !== undefined && cell.v !== ''))
     .map(r => {
     const obj = {};
@@ -66,8 +83,14 @@ async function getPublicData(sheetName) {
       if (val === null) val = '';
       obj[h] = String(val);
     });
-    return obj;
-  });
+      return obj;
+    });
+  publicDataCache.set(sheetName, { data: result, expiresAt: Date.now() + PUBLIC_DATA_TTL_MS });
+  return result;
+}
+
+function invalidatePublicData(sheetName) {
+  publicDataCache.delete(sheetName);
 }
 
 function toRows(values) {
@@ -98,4 +121,4 @@ async function getSheetId(sheets, title) {
   return sheet ? sheet.properties.sheetId : null;
 }
 
-module.exports = { getSheets, getPublicData, toRows, findRowById, getSheetId, SPREADSHEET_ID };
+module.exports = { getSheets, getPublicData, invalidatePublicData, toRows, findRowById, getSheetId, SPREADSHEET_ID };

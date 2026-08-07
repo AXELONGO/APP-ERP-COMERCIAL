@@ -1,6 +1,7 @@
 const {
   getSheets,
   getPublicData,
+  invalidatePublicData,
   findRowById,
   SPREADSHEET_ID
 } = require('../config/sheets');
@@ -24,6 +25,12 @@ const CONFIG_SHEETS = {
   audit: 'Pipeline Auditoria'
 };
 const transitionLocks = new Map();
+let pipelineSheetsReady = false;
+let pipelineSheetsPromise = null;
+let pipelineDefinitionsCache = null;
+let pipelineDefinitionsExpiresAt = 0;
+let pipelineDefinitionsRequest = null;
+const PIPELINE_CACHE_TTL_MS = 15000;
 
 const HEADERS = {
   pipelines: ['pipeline_id', 'key', 'name', 'entity_type', 'version', 'status', 'active', 'created_at', 'updated_at', 'created_by', 'updated_by'],
@@ -134,24 +141,39 @@ function defaultPipelines() {
 }
 
 async function ensurePipelineSheets(sheets) {
-  const response = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
-  const existing = new Set((response.data.sheets || []).map(sheet => sheet.properties.title));
-  const missing = Object.values(CONFIG_SHEETS).filter(name => !existing.has(name));
-  if (missing.length) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SPREADSHEET_ID,
-      requestBody: { requests: missing.map(title => ({ addSheet: { properties: { title } } })) }
-    });
+  if (pipelineSheetsReady) return;
+  if (!pipelineSheetsPromise) {
+    pipelineSheetsPromise = (async () => {
+      const response = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+      const existing = new Set((response.data.sheets || []).map(sheet => sheet.properties.title));
+      const missing = Object.values(CONFIG_SHEETS).filter(name => !existing.has(name));
+      if (missing.length) {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: SPREADSHEET_ID,
+          requestBody: { requests: missing.map(title => ({ addSheet: { properties: { title } } })) }
+        });
+      }
+      for (const [key, title] of Object.entries(CONFIG_SHEETS)) {
+        const result = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `'${title}'!A1:A1` }).catch(() => ({ data: {} }));
+        if (!result.data.values?.[0]?.[0]) {
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `'${title}'!A1:${columnLetter(HEADERS[key].length - 1)}1`,
+            valueInputOption: 'RAW',
+            requestBody: { values: [HEADERS[key]] }
+          });
+        }
+      }
+      pipelineSheetsReady = true;
+    })();
   }
-  for (const [key, title] of Object.entries(CONFIG_SHEETS)) {
-    const result = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `'${title}'!A1:A1` }).catch(() => ({ data: {} }));
-    if (!result.data.values?.[0]?.[0]) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `'${title}'!A1:${columnLetter(HEADERS[key].length - 1)}1`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [HEADERS[key]] }
-      });
+  try {
+    await pipelineSheetsPromise;
+  } finally {
+    pipelineSheetsPromise = null;
+    if (!pipelineSheetsReady) {
+      pipelineDefinitionsCache = null;
+      pipelineDefinitionsExpiresAt = 0;
     }
   }
 }
@@ -262,12 +284,31 @@ function mergeDefaults(definitions) {
 }
 
 async function listPipelines() {
+  if (pipelineDefinitionsCache && pipelineDefinitionsExpiresAt > Date.now()) return pipelineDefinitionsCache;
+  if (pipelineDefinitionsRequest) return pipelineDefinitionsRequest;
+  pipelineDefinitionsRequest = (async () => {
+    let definitions;
+    try {
+      const sheets = await getSheets();
+      await ensurePipelineSheets(sheets);
+      definitions = mergeDefaults(definitionsFromSnapshot(await readSnapshot(sheets)));
+    } catch (_) {
+      definitions = defaultPipelines().map(definition => ({ ...definition, source: 'legacy_fallback' }));
+    }
+    pipelineDefinitionsCache = definitions;
+    pipelineDefinitionsExpiresAt = Date.now() + PIPELINE_CACHE_TTL_MS;
+    return definitions;
+  })();
   try {
-    const sheets = await getSheets();
-    return mergeDefaults(definitionsFromSnapshot(await readSnapshot(sheets)));
-  } catch (_) {
-    return defaultPipelines().map(definition => ({ ...definition, source: 'legacy_fallback' }));
+    return await pipelineDefinitionsRequest;
+  } finally {
+    pipelineDefinitionsRequest = null;
   }
+}
+
+function invalidatePipelineDefinitions() {
+  pipelineDefinitionsCache = null;
+  pipelineDefinitionsExpiresAt = 0;
 }
 
 async function getPipeline(reference) {
@@ -421,6 +462,7 @@ async function seedLegacyPipelines() {
     versions.push(versionRow(definition, { user_name: 'migration' }));
   });
   await persistDefinitions(sheets, definitions, audits, versions);
+  invalidatePipelineDefinitions();
   return definitions;
 }
 
@@ -460,6 +502,7 @@ async function savePipeline(input, { reference = null, actor = null, source = 'a
   })];
   await persistDefinitions(sheets, definitions, audits, [versionRow(definition, actor)]);
   await reassignRemovedStages(sheets, existing, definition, actor, source);
+  invalidatePipelineDefinitions();
   return definition;
 }
 
@@ -502,10 +545,8 @@ async function updateRow(sheets, key, rowIndex, row) {
 
 async function saveState(sheets, state) {
   await ensurePipelineSheets(sheets);
-  const rows = await readRows(sheets, CONFIG_SHEETS.states);
-  const existing = rows.find(row => row.state_id === state.state_id || (row.pipeline_id === state.pipeline_id && row.record_type === state.record_type && row.record_id === state.record_id));
   const row = HEADERS.states.map(header => state[header] ?? '');
-  if (existing) await updateRow(sheets, 'states', existing._rowIndex, row);
+  if (state._rowIndex) await updateRow(sheets, 'states', state._rowIndex, row);
   else await appendRow(sheets, 'states', row);
 }
 
@@ -585,6 +626,7 @@ async function updateLegacyField(sheets, recordType, recordId, value) {
   const index = headers.findIndex(header => header === mapping.field);
   if (index === -1) throw validationError(`No existe la columna ${mapping.field} en ${mapping.sheet}`, 500);
   await sheets.spreadsheets.values.update({ spreadsheetId: SPREADSHEET_ID, range: `'${mapping.sheet}'!${columnLetter(index)}${rowNumber}`, valueInputOption: 'RAW', requestBody: { values: [[value]] } });
+  invalidatePublicData(mapping.sheet);
 }
 
 async function updateRecordField(sheets, recordType, recordId, field, value) {
