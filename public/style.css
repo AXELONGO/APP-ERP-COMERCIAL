@@ -1722,6 +1722,13 @@ tbody tr:hover {
 .pipeline-readonly-meta, .pipeline-readonly-stages { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
 .pipeline-readonly-stages span { padding:6px 9px; border-radius:999px; background:var(--bg); color:var(--text2); }
 .pipeline-edit-stages { margin-top:12px; }
+.simple-pipeline-help { display:flex; gap:8px; align-items:flex-start; margin-bottom:14px; padding:11px 12px; border-radius:9px; background:#eff6ff; color:#475569; font-size:13px; }
+.simple-pipeline-help i { color:#2563eb; font-size:17px; }
+.simple-pipeline-list { display:grid; gap:10px; max-height:58vh; overflow:auto; padding-right:2px; }
+.simple-stage-card { padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+.simple-stage-top { display:flex; align-items:center; gap:10px; }.simple-stage-number { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--blue-light); color:var(--blue); font-weight:700; }.simple-stage-heading { display:flex; flex:1; flex-direction:column; gap:3px; }.simple-stage-heading strong { color:var(--text); }.simple-stage-heading small { color:var(--text3); }.simple-stage-actions { display:flex; gap:5px; }.simple-stage-actions button:disabled { opacity:.35; cursor:not-allowed; }
+.simple-stage-fields { display:grid; grid-template-columns:1fr 1fr auto auto; gap:10px; align-items:end; margin-top:12px; }.simple-stage-fields label { display:grid; gap:5px; color:var(--text2); font-size:11px; font-weight:600; text-transform:uppercase; }.simple-stage-fields input:not([type="checkbox"]) { min-width:0; padding:9px 10px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--surface); font:inherit; text-transform:none; }.simple-check { display:flex !important; grid-template-columns:auto 1fr; align-items:center; gap:6px; min-height:38px; white-space:nowrap; }.simple-check input { width:17px; height:17px; accent-color:var(--blue); }
+.simple-pipeline-footer { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:14px; color:var(--text2); font-size:12px; }
 
 @media (max-width: 640px) {
   .ai-communication-modal {
@@ -1735,4 +1742,5 @@ tbody tr:hover {
 
   .pipeline-manager-header { align-items:stretch; flex-direction:column; }
   .pipeline-readonly-card > div:first-child { flex-direction:column; }
+  .simple-stage-fields { grid-template-columns:1fr; }.simple-pipeline-footer { align-items:stretch; flex-direction:column; }.simple-pipeline-footer .btn { width:100%; }
 }

@@ -2830,8 +2830,52 @@ function openPipelineStageEditor(key) {
   const definition = window.pipelineEditorState.definitions[key];
   if (!definition) return;
   window.pipelineEditorState.selectedKey = key;
-  openModal(`Etapas: ${definition.name}`, '<div id="pipelineEditorBody"></div>');
-  renderPipelineEditor();
+  openModal(`Editar etapas: ${definition.name}`, '<div id="pipelineEditorBody"></div>');
+  renderSimplePipelineEditor();
+}
+
+function renderSimplePipelineEditor() {
+  const definition = window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey];
+  const container = document.getElementById('pipelineEditorBody');
+  if (!definition || !container) return;
+  const stages = [...definition.stages].sort((a, b) => a.order_index - b.order_index);
+  container.innerHTML = `
+    <div class="simple-pipeline-help"><i class="ph ph-info"></i><span>Solo modifica el orden y los datos visibles de las etapas. Guarda cuando termines.</span></div>
+    <div class="simple-pipeline-list">
+      ${stages.map((stage, index) => `<article class="simple-stage-card">
+        <div class="simple-stage-top"><span class="simple-stage-number">${index + 1}</span><div class="simple-stage-heading"><strong>${escapeDetailHtml(stage.name)}</strong><small>Valor guardado: ${escapeDetailHtml(stage.legacy_value || stage.stage_key)}</small></div><div class="simple-stage-actions"><button class="btn btn-outline btn-small" title="Subir" onclick="moveSimplePipelineStage('${encodeURIComponent(stage.stage_id)}',-1)" ${index === 0 ? 'disabled' : ''}>↑</button><button class="btn btn-outline btn-small" title="Bajar" onclick="moveSimplePipelineStage('${encodeURIComponent(stage.stage_id)}',1)" ${index === stages.length - 1 ? 'disabled' : ''}>↓</button></div></div>
+        <div class="simple-stage-fields"><label>Nombre visible<input value="${escapeDetailHtml(stage.name)}" onchange="updateSimplePipelineStage('${encodeURIComponent(stage.stage_id)}','name',this.value)"></label><label>Valor persistido<input value="${escapeDetailHtml(stage.legacy_value || stage.stage_key)}" onchange="updateSimplePipelineStage('${encodeURIComponent(stage.stage_id)}','legacy_value',this.value)"></label><label class="simple-check"><input type="checkbox" ${stage.active !== false ? 'checked' : ''} onchange="updateSimplePipelineStage('${encodeURIComponent(stage.stage_id)}','active',this.checked)"> Activa</label><label class="simple-check"><input type="checkbox" ${stage.is_initial ? 'checked' : ''} onchange="setSimpleInitialStage('${encodeURIComponent(stage.stage_id)}')"> Inicial</label></div>
+      </article>`).join('')}
+    </div>
+    <div class="simple-pipeline-footer"><span>${stages.length} etapas · ${definition.status === 'published' ? 'Publicado' : 'Borrador'}</span><button class="btn btn-primary" onclick="savePipelineEditor()"><i class="ph ph-check"></i> Guardar etapas</button></div>`;
+}
+
+function updateSimplePipelineStage(stageId, field, value) {
+  const stage = pipelineEditorStage(stageId);
+  if (!stage) return;
+  stage[field] = field === 'active' ? Boolean(value) : value;
+  if (field === 'name' && !String(value).trim()) showToast('El nombre de la etapa no puede estar vacío', true);
+}
+
+function setSimpleInitialStage(stageId) {
+  const definition = window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey];
+  if (!definition) return;
+  const selectedId = pipelineEditorId(stageId);
+  definition.stages.forEach(stage => { stage.is_initial = stage.stage_id === selectedId; });
+  renderSimplePipelineEditor();
+}
+
+function moveSimplePipelineStage(stageId, direction) {
+  const definition = window.pipelineEditorState.definitions[window.pipelineEditorState.selectedKey];
+  if (!definition) return;
+  const stages = [...definition.stages].sort((a, b) => a.order_index - b.order_index);
+  const index = stages.findIndex(stage => stage.stage_id === pipelineEditorId(stageId));
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= stages.length) return;
+  [stages[index], stages[target]] = [stages[target], stages[index]];
+  stages.forEach((stage, order) => { stage.order_index = order; });
+  definition.stages = stages;
+  renderSimplePipelineEditor();
 }
 
 async function openPipelineManager(preferredKey = null) {
