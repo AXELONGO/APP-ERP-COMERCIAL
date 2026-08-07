@@ -2755,8 +2755,8 @@ function renderPipelineEditor() {
   const stages = [...definition.stages].sort((a, b) => a.order_index - b.order_index);
   container.innerHTML = `
     <div class="pipeline-editor-toolbar">
-      <div class="form-group"><label>Nombre del pipeline</label><input value="${escapeDetailHtml(definition.name)}" oninput="updatePipelineEditorMeta('name', this.value)"></div>
-      <div class="form-group"><label>Estado</label><select onchange="updatePipelineEditorMeta('status', this.value)"><option value="draft" ${definition.status === 'draft' ? 'selected' : ''}>Borrador</option><option value="published" ${definition.status === 'published' ? 'selected' : ''}>Publicado</option><option value="archived" ${definition.status === 'archived' ? 'selected' : ''}>Archivado</option></select></div>
+      <div class="form-group"><label>Nombre del pipeline</label><input value="${escapeDetailHtml(definition.name)}" disabled></div>
+      <div class="form-group"><label>Estado</label><input value="${definition.status === 'published' ? 'Publicado' : definition.status}" disabled></div>
       <div class="form-group"><label>Versión</label><input value="${escapeDetailHtml(definition.version)}" disabled></div>
     </div>
     <div class="pipeline-editor-actions"><button class="btn btn-outline" onclick="addPipelineStage()"><i class="ph ph-plus"></i> Nueva etapa</button><span class="text-muted">${stages.length} etapas configuradas</span></div>
@@ -2777,7 +2777,7 @@ function renderPipelineEditor() {
         ${(stage.steps || []).sort((a, b) => a.order_index - b.order_index).map((step, stepIndex) => `
           <div class="pipeline-step-editor"><div class="pipeline-step-title"><span>${stepIndex + 1}.</span><input value="${escapeDetailHtml(step.name)}" oninput="updatePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'name',this.value)"><button class="btn btn-outline btn-small" onclick="movePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),-1)">↑</button><button class="btn btn-outline btn-small" onclick="movePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),1)">↓</button><button class="btn btn-outline btn-small" onclick="removePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'))"><i class="ph ph-trash"></i></button></div><div class="pipeline-editor-grid"><input value="${escapeDetailHtml(step.step_key)}" placeholder="Clave" oninput="updatePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'step_key',this.value)"><select onchange="updatePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'type',this.value)">${['task', 'approval', 'notification', 'automation', 'custom'].map(type => `<option ${step.type === type ? 'selected' : ''}>${type}</option>`).join('')}</select><label class="pipeline-check"><input type="checkbox" ${step.active !== false ? 'checked' : ''} onchange="updatePipelineStep(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'active',this.checked)"> Activo</label></div><div class="pipeline-editor-json"><textarea onblur="updatePipelineStepJson(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'conditions',this.value)" placeholder="Condiciones JSON">${escapeDetailHtml(pipelineEditorJson(step.conditions))}</textarea><textarea onblur="updatePipelineStepJson(decodeURIComponent('${encodeURIComponent(stage.stage_id)}'),decodeURIComponent('${encodeURIComponent(step.step_id)}'),'actions',this.value)" placeholder="Acciones JSON">${escapeDetailHtml(pipelineEditorJson(step.actions))}</textarea></div></div>`).join('')}
       </article>`).join('')}</div>
-    <div class="pipeline-editor-footer"><button class="btn btn-outline" onclick="publishPipelineEditor()">Publicar versión</button><button class="btn btn-primary" onclick="savePipelineEditor()">Guardar configuración</button></div>`;
+     <div class="pipeline-editor-footer"><button class="btn btn-primary" onclick="savePipelineEditor()">Guardar etapas</button></div>`;
 }
 
 function openNewPipelineForm() {
@@ -2823,7 +2823,15 @@ async function createPipelineFromForm(event) {
 function renderPipelineCatalog(definitions) {
   const container = document.getElementById('pipelineEditorBody');
   if (!container) return;
-  container.innerHTML = `<div class="pipeline-readonly-list">${definitions.map(definition => `<article class="pipeline-readonly-card"><div><strong>${escapeDetailHtml(definition.name)}</strong><span>${escapeDetailHtml(definition.key)} · ${escapeDetailHtml(definition.entity_type)}</span></div><div class="pipeline-readonly-meta"><span class="badge badge-${definition.status === 'published' ? 'green' : 'orange'}">${definition.status === 'published' ? 'Publicado' : 'Borrador'}</span><span>${definition.stages.filter(stage => stage.active !== false).length} etapas</span><span>v${definition.version}</span></div><div class="pipeline-readonly-stages">${definition.stages.filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index).map((stage, index) => `<span>${index + 1}. ${escapeDetailHtml(stage.name)}</span>`).join('')}</div></article>`).join('')}</div>`;
+  container.innerHTML = `<div class="pipeline-readonly-list">${definitions.map(definition => `<article class="pipeline-readonly-card"><div><strong>${escapeDetailHtml(definition.name)}</strong><span>${escapeDetailHtml(definition.key)} · ${escapeDetailHtml(definition.entity_type)}</span></div><div class="pipeline-readonly-meta"><span class="badge badge-${definition.status === 'published' ? 'green' : 'orange'}">${definition.status === 'published' ? 'Publicado' : 'Borrador'}</span><span>${definition.stages.filter(stage => stage.active !== false).length} etapas</span><span>v${definition.version}</span></div><div class="pipeline-readonly-stages">${definition.stages.filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index).map((stage, index) => `<span>${index + 1}. ${escapeDetailHtml(stage.name)}</span>`).join('')}</div><button class="btn btn-outline btn-small pipeline-edit-stages" onclick="openPipelineStageEditor(decodeURIComponent('${encodeURIComponent(definition.key)}'))"><i class="ph ph-pencil-simple"></i> Editar etapas</button></article>`).join('')}</div>`;
+}
+
+function openPipelineStageEditor(key) {
+  const definition = window.pipelineEditorState.definitions[key];
+  if (!definition) return;
+  window.pipelineEditorState.selectedKey = key;
+  openModal(`Etapas: ${definition.name}`, '<div id="pipelineEditorBody"></div>');
+  renderPipelineEditor();
 }
 
 async function openPipelineManager(preferredKey = null) {

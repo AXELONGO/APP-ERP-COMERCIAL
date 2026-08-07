@@ -1,11 +1,14 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const {
   listPipelines,
+  getPipeline,
   savePipeline,
+  updatePipeline,
   transitionRecord,
   getState,
   getAudit,
-  validateLegacyStageChange
+  validateLegacyStageChange,
+  removeStage
 } = require('../services/pipelineService');
 const { validatePipelineDefinition } = require('../utils/pipelineValidation');
 
@@ -32,7 +35,13 @@ function registerPipelineRoutes(app) {
   }));
 
   app.put('/api/pipelines/:pipelineId', asyncHandler(async (req, res) => {
-    res.status(405).json({ error: 'Los pipelines existentes son de solo lectura. Crea un pipeline nuevo.' });
+    const current = await getPipeline(req.params.pipelineId);
+    if (!Array.isArray(req.body?.stages)) return res.status(400).json({ error: 'Solo se pueden actualizar las etapas del pipeline' });
+    const definition = await updatePipeline(req.params.pipelineId, {
+      stages: req.body.stages,
+      transitions: Array.isArray(req.body.transitions) ? req.body.transitions : current.transitions
+    }, { actor: actorFromRequest(req), source: 'stage_editor' });
+    res.json(definition);
   }));
 
   app.delete('/api/pipelines/:pipelineId', asyncHandler(async (req, res) => {
@@ -48,19 +57,28 @@ function registerPipelineRoutes(app) {
   }));
 
   app.post('/api/pipelines/:pipelineId/stages', asyncHandler(async (req, res) => {
-    res.status(405).json({ error: 'Las etapas se definen al crear un pipeline nuevo.' });
+    const current = await getPipeline(req.params.pipelineId);
+    const stage = { ...req.body, stage_id: req.body.stage_id || `STG-${Date.now()}` };
+    res.status(201).json(await updatePipeline(req.params.pipelineId, { stages: [...current.stages, stage] }, { actor: actorFromRequest(req), source: 'stage_create' }));
   }));
 
   app.post('/api/pipelines/:pipelineId/stages/reorder', asyncHandler(async (req, res) => {
-    res.status(405).json({ error: 'Las etapas se definen al crear un pipeline nuevo.' });
+    const order = Array.isArray(req.body.stage_ids) ? req.body.stage_ids : [];
+    const current = await getPipeline(req.params.pipelineId);
+    if (order.length !== current.stages.length || new Set(order).size !== order.length) return res.status(400).json({ error: 'stage_ids debe contener todas las etapas una sola vez' });
+    const stages = current.stages.map(stage => ({ ...stage, order_index: order.indexOf(stage.stage_id) }));
+    res.json(await updatePipeline(req.params.pipelineId, { stages }, { actor: actorFromRequest(req), source: 'stage_reorder' }));
   }));
 
   app.put('/api/pipelines/:pipelineId/stages/:stageId', asyncHandler(async (req, res) => {
-    res.status(405).json({ error: 'Las etapas de pipelines existentes son de solo lectura.' });
+    const current = await getPipeline(req.params.pipelineId);
+    const stages = current.stages.map(stage => stage.stage_id === req.params.stageId ? { ...stage, ...req.body, stage_id: stage.stage_id } : stage);
+    if (!stages.some(stage => stage.stage_id === req.params.stageId)) return res.status(404).json({ error: 'Etapa no encontrada' });
+    res.json(await updatePipeline(req.params.pipelineId, { stages }, { actor: actorFromRequest(req), source: 'stage_update' }));
   }));
 
   app.delete('/api/pipelines/:pipelineId/stages/:stageId', asyncHandler(async (req, res) => {
-    res.status(405).json({ error: 'Las etapas de pipelines existentes son de solo lectura.' });
+    res.json(await removeStage(req.params.pipelineId, req.params.stageId, { successorStageId: req.body?.successor_stage_id || req.query.successor_stage_id || null, actor: actorFromRequest(req), source: 'stage_delete' }));
   }));
 
   app.post('/api/pipelines/:pipelineId/transition', asyncHandler(async (req, res) => {

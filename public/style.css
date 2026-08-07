@@ -1721,6 +1721,7 @@ tbody tr:hover {
 .pipeline-readonly-card strong { color:var(--text); }.pipeline-readonly-card span { color:var(--text2); font-size:12px; }
 .pipeline-readonly-meta, .pipeline-readonly-stages { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
 .pipeline-readonly-stages span { padding:6px 9px; border-radius:999px; background:var(--bg); color:var(--text2); }
+.pipeline-edit-stages { margin-top:12px; }
 
 @media (max-width: 640px) {
   .ai-communication-modal {
