@@ -73,6 +73,14 @@ async function getContact(session, chatId, wahaConfig = {}) {
   return requestWaha(`/api/contacts?contactId=${encodeURIComponent(chatId)}&session=${encodeURIComponent(session)}`, { wahaConfig });
 }
 
+async function getLids(session, wahaConfig = {}, { limit = 100, offset = 0 } = {}) {
+  return requestWaha(`/api/${encodeURIComponent(session)}/lids?limit=${limit}&offset=${offset}`, { wahaConfig });
+}
+
+async function getContacts(session, wahaConfig = {}, { limit = 100, offset = 0 } = {}) {
+  return requestWaha(`/api/contacts/all?session=${encodeURIComponent(session)}&limit=${limit}&offset=${offset}`, { wahaConfig });
+}
+
 async function configureAndStartSession({ webhookUrl, webhookSecret, wahaConfig = {} } = {}) {
   const config = getWahaConfig(wahaConfig);
   const webhooks = webhookUrl ? [{
@@ -126,6 +134,8 @@ module.exports = {
   getChatMessages,
   getLidPhone,
   getContact,
+  getLids,
+  getContacts,
   configureAndStartSession,
   stopSession,
   getQr,

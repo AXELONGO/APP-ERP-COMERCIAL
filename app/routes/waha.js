@@ -7,6 +7,8 @@ const {
   getChatMessages,
   getLidPhone,
   getContact,
+  getLids,
+  getContacts,
   configureAndStartSession,
   stopSession,
   getQr,
@@ -165,6 +167,7 @@ async function resolveWebhookWorkspace(event, req) {
 }
 
 async function syncWahaHistory(workspaceId, config) {
+  const identities = await loadWahaIdentities(config);
   const rows = [];
   let offset = 0;
   while (true) {
@@ -181,12 +184,11 @@ async function syncWahaHistory(workspaceId, config) {
     let chatPhone = null;
     let contact = null;
     if (String(chatId).endsWith('@lid')) {
-      const lid = await getLidPhone(config.session, chatId, config).catch(() => null);
-      chatPhone = phoneFromChatId(lid?.pn || '');
+      chatPhone = phoneFromChatId(identities.get(chatId)?.phone || '');
       contact = await getContact(config.session, chatId, config).catch(() => null);
     }
     chatPhone = chatPhone || phoneFromChatId(contact?.number ? `${contact.number}@c.us` : contact?.id || '');
-    const chatName = chat.name || chat._chat?.name || chat._chat?.formattedName || chat._chat?.notifyName || contact?.name || contact?.pushname || contact?.shortName || chatPhone || phoneFromChatId(chatId);
+    const chatName = chat.name || chat._chat?.name || chat._chat?.formattedName || chat._chat?.notifyName || contact?.name || contact?.pushname || contact?.shortName || identities.get(chatId)?.name || chatPhone || phoneFromChatId(chatId);
     const messages = await getChatMessages(config.session, chatId, config, { limit: 100 });
     for (const payload of Array.isArray(messages) ? messages : []) {
       const conversationId = await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload, chatName, chatPhone });
@@ -198,6 +200,7 @@ async function syncWahaHistory(workspaceId, config) {
 }
 
 async function syncWahaRecent(workspaceId, config) {
+  const identities = await loadWahaIdentities(config);
   const chats = await getChats(config.session, config, { limit: 25, offset: 0 });
   const rows = Array.isArray(chats) ? chats : [];
   let imported = 0;
@@ -205,8 +208,10 @@ async function syncWahaRecent(workspaceId, config) {
     const chatId = chat.id || chat.chatId;
     if (!chatId || chatId === 'status@broadcast') continue;
     const contact = String(chatId).endsWith('@lid') ? await getContact(config.session, chatId, config).catch(() => null) : null;
-    const chatPhone = phoneFromChatId(contact?.number ? `${contact.number}@c.us` : contact?.id || chatId);
-    const chatName = chat.name || chat._chat?.name || chat._chat?.formattedName || contact?.name || contact?.pushname || contact?.shortName || chatPhone;
+    const identity = identities.get(chatId) || {};
+    const mappedPhone = identity.phone || (contact?.number ? `${contact.number}@c.us` : contact?.id || chatId);
+    const chatPhone = phoneFromChatId(mappedPhone);
+    const chatName = chat.name || chat._chat?.name || chat._chat?.formattedName || contact?.name || contact?.pushname || contact?.shortName || identity.name || chatPhone;
     const messages = await getChatMessages(config.session, chatId, config, { limit: 25, offset: 0 });
     for (const payload of Array.isArray(messages) ? messages : []) {
       if (await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload, chatName, chatPhone })) imported += 1;
@@ -214,6 +219,29 @@ async function syncWahaRecent(workspaceId, config) {
   }
   await normalizeWahaConversationTimes(workspaceId);
   return { chats: rows.length, messages: imported };
+}
+
+async function loadWahaIdentities(config) {
+  const identities = new Map();
+  let offset = 0;
+  while (true) {
+    const page = await getLids(config.session, config, { limit: 100, offset }).catch(() => []);
+    const items = Array.isArray(page) ? page : [];
+    items.forEach(item => { if (item.lid && item.pn) identities.set(item.lid, { phone: item.pn }); });
+    if (items.length < 100) break;
+    offset += items.length;
+  }
+  offset = 0;
+  while (true) {
+    const page = await getContacts(config.session, config, { limit: 100, offset }).catch(() => []);
+    const items = Array.isArray(page) ? page : [];
+    items.forEach(item => {
+      if (item.id) identities.set(item.id, { phone: item.number ? `${item.number}@c.us` : item.id, name: item.name || item.pushname || item.shortName || '' });
+    });
+    if (items.length < 100) break;
+    offset += items.length;
+  }
+  return identities;
 }
 
 function registerWahaRoutes(app) {
