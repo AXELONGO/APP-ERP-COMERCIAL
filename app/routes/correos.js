@@ -93,6 +93,11 @@ function normalizeRecipients(recipients) {
   });
 }
 
+function personalize(value, recipient) {
+  return String(value || '')
+    .replace(/{{\s*nombre\s*}}/gi, recipient.name || '');
+}
+
 function registerCorreosRoutes(app) {
   app.get('/api/auth/gmail', (req, res) => res.redirect(getGmailAuthUrl()));
 
@@ -188,7 +193,7 @@ function registerCorreosRoutes(app) {
     for (let index = 0; index < recipients.length; index += 1) {
       const recipient = recipients[index];
       try {
-        await gmail.users.messages.send({ userId: 'me', requestBody: { raw: encodeMessage({ to: recipient.email, from: FROM_ADDRESS, subject, htmlBody, textBody }) } });
+         await gmail.users.messages.send({ userId: 'me', requestBody: { raw: encodeMessage({ to: recipient.email, from: FROM_ADDRESS, subject: personalize(subject, recipient), htmlBody: personalize(htmlBody, recipient), textBody: personalize(textBody, recipient) }) } });
         stats.sent += 1;
       } catch (error) {
         stats.failed += 1;

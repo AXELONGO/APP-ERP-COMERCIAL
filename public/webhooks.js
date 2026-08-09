@@ -207,7 +207,7 @@ window.addEventListener('unhandledrejection', event => {
  * Abre el modal de campaña de prospectos con los seleccionados actuales
  */
 function openCampanaModal() {
-  const todos = window.prospectosData || [];
+  const todos = (window.prospectosData || []).filter(p => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(p['Correo Electrónico'] || '').trim()));
   if (todos.length === 0) {
     showToast('<i class="ph-fill ph-warning" style="color:#f59e0b; vertical-align:middle; margin-right:4px;"></i> No hay prospectos cargados', true);
     return;
@@ -221,7 +221,7 @@ function openCampanaModal() {
           style="width:16px;height:16px;accent-color:#7c3aed;cursor:pointer;">
         <span class="badge badge-purple" style="font-size:11px;">${p['ID Prospectos'] || '?'}</span>
         <strong style="font-size:13px;">${p['Nombre del Contacto'] || '—'}</strong>
-        <span style="font-size:12px;color:#9ca3af;margin-left:auto;">${p['Teléfono'] || ''}</span>
+        <span style="font-size:12px;color:#64748b;margin-left:auto;">${p['Correo Electrónico'] || ''}</span>
         <span style="font-size:12px;color:#9ca3af;">${p['Giro'] || ''}</span>
       </label>
     </li>`
@@ -286,25 +286,35 @@ async function submitCampana(e) {
     promotion_type: promoType,
   };
 
-  const payload = buildPayload(
-    'prospectos',
-    'button',
-    null,
-    recordData,
-    formData,
-    'btn_prospecto_campana'
-  );
-
   try {
-    await sendWebhook('prospectos', payload);
-    showToast(`<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Campaña enviada a ${selectedData.length} prospecto(s)`);
+    const response = await fetch('/api/correos/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject: promoType,
+        html_body: `<p>Hola <strong>{{nombre}}</strong>,</p><p>${escapeCorreoCampaignHtml(copyText).replace(/\n/g, '<br>')}</p><p>Quedamos atentos.</p>`,
+        text_body: `Hola {{nombre}},\n\n${copyText}\n\nQuedamos atentos.`,
+        recipients: selectedData.map(p => ({ name: p['Nombre del Contacto'] || '', email: p['Correo Electrónico'], prospect_id: p['ID Prospectos'] || '' }))
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (result.reconnect_required) throw new Error('Gmail necesita autorización. Conecta Gmail desde Integraciones.');
+      throw new Error(result.error || 'No se pudo enviar la campaña');
+    }
+    const stats = result.send_stats || {};
+    showToast(`<i class="ph-fill ph-check-circle" style="color:#10b981; vertical-align:middle; margin-right:4px;"></i> Gmail aceptó ${stats.sent || 0} correo(s); ${stats.failed || 0} fallidos.`);
     closeCampanaModal();
   } catch (err) {
-    showToast('<i class="ph-fill ph-x-circle" style="color:#ef4444; vertical-align:middle; margin-right:4px;"></i> Error al enviar campaña', true);
+    showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444; vertical-align:middle; margin-right:4px;"></i> ${escapeCorreoCampaignHtml(err.message)}`, true);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Enviar Campaña';
   }
+}
+
+function escapeCorreoCampaignHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 }
 
 // ── BOTÓN REPORTE — PROYECTOS ─────────────────────────────────────
