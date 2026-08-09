@@ -413,6 +413,7 @@ async function loadChats() {
     await v2Fetch('/api/v2/waha/sync-recent', { method: 'POST', body: '{}' }).catch(() => null);
     const result = await v2Fetch('/api/v2/conversations?limit=100');
     wahaConversations = result.data || [];
+    if (!Array.isArray(window.prospectosData) || !window.prospectosData.length) window.prospectosData = await fetch(`${API}/api/prospectos`).then(response => response.json()).catch(() => []);
     renderWahaConversations();
     if (activeWahaConversation) selectWahaConversation(activeWahaConversation.id);
     if (!wahaPollTimer) wahaPollTimer = setInterval(() => { if (currentSection === 'chats') loadChats(); }, 30000);
@@ -460,6 +461,13 @@ function wahaDisplayName(item) {
   return hasUsefulName ? name : identity.replace(/@(lid|c\.us|g\.us|newsletter)$/i, '');
 }
 
+function wahaProspect(item) {
+  const digits = String(item?.phone_e164 || '').replace(/\D/g, '');
+  if (!digits) return null;
+  const suffix = digits.slice(-10);
+  return (window.prospectosData || []).find(prospect => String(prospect['Teléfono'] || '').replace(/\D/g, '').slice(-10) === suffix) || null;
+}
+
 function renderWahaConversations() {
   const search = String(document.getElementById('wahaSearch')?.value || '').toLowerCase();
   const rows = wahaConversations.filter(item => (wahaFilter === 'all' || item.status === wahaFilter) && `${item.contact_name} ${item.phone_e164}`.toLowerCase().includes(search));
@@ -492,7 +500,8 @@ async function selectWahaConversation(id) {
   document.getElementById('wahaThreadName').onclick = () => activeWahaConversation.contact_id && openContactPanel(activeWahaConversation.contact_id);
   document.getElementById('wahaThreadName').classList.add('contact-name-link');
   document.getElementById('wahaThreadPhone').textContent = activeWahaConversation.phone_e164 || '';
-  document.getElementById('wahaContactDetails').innerHTML = `<i class="ph ph-user-circle"></i><strong>${escapeWahaHtml(wahaDisplayName(activeWahaConversation))}</strong><small>${escapeWahaHtml(activeWahaConversation.phone_e164 || '')}</small><span class="soft-badge gray">Etapa: ${escapeWahaHtml(activeWahaConversation.pipeline_stage || 'new')}</span>`;
+  const prospect = wahaProspect(activeWahaConversation);
+  document.getElementById('wahaContactDetails').innerHTML = `<i class="ph ph-user-circle"></i><strong>${escapeWahaHtml(prospect?.['Nombre del Contacto'] || wahaDisplayName(activeWahaConversation))}</strong><small>${escapeWahaHtml(prospect?.['Teléfono'] || activeWahaConversation.phone_e164 || '')}${prospect?.['Correo Electrónico'] ? ` · ${escapeWahaHtml(prospect['Correo Electrónico'])}` : ''}</small><span class="soft-badge gray">Etapa: ${escapeWahaHtml(prospect?.['Etapa'] || activeWahaConversation.pipeline_stage || 'new')}</span>${prospect ? `<small class="waha-prospect-match"><i class="ph ph-check-circle"></i> Prospecto ${escapeWahaHtml(prospect['ID Prospectos'] || '')} relacionado</small>` : ''}<button class="btn btn-outline btn-small waha-contact-profile-button" onclick="openWahaContactProfile()"><i class="ph ph-address-book"></i> Ver ficha y notas</button>`;
   try {
     const result = await v2Fetch(`/api/v2/conversations/${encodeURIComponent(id)}/messages?limit=200`);
     const messages = result.data || [];
@@ -500,6 +509,20 @@ async function selectWahaConversation(id) {
     const container = document.getElementById('wahaMessages');
     container.scrollTop = container.scrollHeight;
   } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
+}
+
+async function openWahaContactProfile() {
+  if (!activeWahaConversation?.contact_id) return showToast('Este chat todavía no tiene contacto asociado', true);
+  const prospect = wahaProspect(activeWahaConversation);
+  if (prospect) {
+    const digits = String(prospect['Teléfono'] || '').replace(/\D/g, '');
+    const phone = digits ? `+${digits}` : activeWahaConversation.phone_e164;
+    await v2Fetch(`/api/v2/contacts/${encodeURIComponent(activeWahaConversation.contact_id)}/profile`, { method: 'GET' }).then(async response => {
+      const contact = response.data?.contact;
+      return v2Fetch(`/api/v2/contacts/${encodeURIComponent(activeWahaConversation.contact_id)}/profile`, { method: 'PATCH', body: JSON.stringify({ name: prospect['Nombre del Contacto'] || contact?.name, phone_e164: phone, email: prospect['Correo Electrónico'] || contact?.email || '', source: 'prospectos', channel: prospect['Medio de contacto'] || 'whatsapp', company: prospect['Giro'] || '' }) });
+    }).catch(() => null);
+  }
+  openContactPanel(activeWahaConversation.contact_id);
 }
 
 async function sendWahaMessage(event) {
