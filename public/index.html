@@ -48,55 +48,69 @@
 <div id="sidebarOverlay" class="sidebar-overlay hidden"></div>
 
 <!-- ── SIDEBAR ─────────────────────────────────────────────── -->
-<aside class="sidebar mini" id="sidebar">
+<aside class="sidebar" id="sidebar">
   <div class="sidebar-logo" style="padding: 20px 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: padding 0.3s;" onclick="document.getElementById('sidebar').classList.toggle('mini')" title="Expandir/Contraer Menú">
     <div class="logo-mask" style="width: 100%; height: 40px; background: var(--primary-grad); -webkit-mask: url(/logo.png) no-repeat left center / auto 32px; mask: url(/logo.png) no-repeat left center / auto 32px; transition: width 0.3s;" title="LUMARK Logo"></div>
   </div>
 
   <nav class="sidebar-nav">
-    <div class="nav-section-label">PRINCIPAL</div>
+    <div class="nav-section-label">AGENTE</div>
     <a href="#" class="nav-item active" data-section="dashboard" id="nav-dashboard">
       <span class="nav-icon"><i class="ph ph-squares-four"></i></span><span>Dashboard</span>
     </a>
-    <a href="#" class="nav-item" data-section="prospectos" id="nav-prospectos">
-      <span class="nav-icon"><i class="ph ph-target"></i></span><span>Prospectos</span>
+    <a href="#" class="nav-item" data-section="agent" id="nav-agent">
+      <span class="nav-icon"><i class="ph ph-robot"></i></span><span>Agente de Chat</span>
     </a>
-    <a href="#" class="nav-item" data-section="clientes" id="nav-clientes">
-      <span class="nav-icon"><i class="ph ph-users"></i></span><span>Clientes</span>
+    <a href="#" class="nav-item nav-subitem" data-section="playground" id="nav-playground">
+      <span class="nav-icon"><i class="ph ph-flask"></i></span><span>Playground</span>
     </a>
 
     <div class="nav-section-label">OPERACIÓN</div>
-    <a href="#" class="nav-item" data-section="proyectos" id="nav-proyectos">
-      <span class="nav-icon"><i class="ph ph-rocket-launch"></i></span><span>Proyectos</span>
+    <a href="#" class="nav-item" data-section="chats" id="nav-chats">
+      <span class="nav-icon"><i class="ph ph-chats-circle"></i></span><span>Chats</span><span class="nav-badge">0</span>
+    </a>
+    <a href="#" class="nav-item" data-section="prospectos" id="nav-prospectos">
+      <span class="nav-icon"><i class="ph ph-address-book"></i></span><span>Contactos</span>
     </a>
     <a href="#" class="nav-item" data-section="tableros" id="nav-tableros">
-      <span class="nav-icon"><i class="ph ph-kanban"></i></span><span>Tableros</span>
+      <span class="nav-icon"><i class="ph ph-funnel"></i></span><span>Embudo</span>
     </a>
     <a href="#" class="nav-item" data-section="citas" id="nav-citas">
-      <span class="nav-icon"><i class="ph ph-calendar"></i></span><span>Citas</span>
+      <span class="nav-icon"><i class="ph ph-calendar-blank"></i></span><span>Calendarios</span>
+    </a>
+    <div class="nav-section-label">VENTA</div>
+    <a href="#" class="nav-item" data-section="cotizaciones" id="nav-cotizaciones">
+      <span class="nav-icon"><i class="ph ph-receipt"></i></span><span>Cotizador</span>
+    </a>
+    <a href="#" class="nav-item" data-section="pagos_gastos" id="nav-pagos_gastos">
+      <span class="nav-icon"><i class="ph ph-wallet"></i></span><span>Cobranza</span>
     </a>
 
-    <div class="nav-section-label">MÉTRICAS</div>
-        <a href="#" class="nav-item" data-section="actividades" id="nav-actividades">
-          <span class="nav-icon"><i class="ph ph-lightning"></i></span><span>Indicadores diarios</span>
-        </a>
+    <div class="nav-section-label">INTELIGENCIA</div>
+    <a href="#" class="nav-item" data-section="analiticas" id="nav-analiticas">
+      <span class="nav-icon"><i class="ph ph-chart-line-up"></i></span><span>Analíticas</span>
+    </a>
+    <a href="#" class="nav-item" data-section="integraciones" id="nav-integraciones">
+      <span class="nav-icon"><i class="ph ph-plugs-connected"></i></span><span>Integraciones</span>
+    </a>
 
-        <div class="nav-section-label">DOCUMENTOS</div>
-        <a href="#" class="nav-item" data-section="cotizaciones" id="nav-cotizaciones">
-          <span class="nav-icon"><i class="ph ph-file-text"></i></span><span>Cotizaciones</span>
-        </a>
-        <a href="#" class="nav-item" data-section="archivos" id="nav-archivos">
-          <span class="nav-icon"><i class="ph ph-folder"></i></span><span>Archivos</span>
-        </a>
-        <a href="#" class="nav-item" data-section="correos" id="nav-correos">
-          <span class="nav-icon"><i class="ph ph-envelope"></i></span><span>Correos</span>
-        </a>
-
-        <div class="nav-section-label">FINANZAS</div>
-        <a href="#" class="nav-item" data-section="pagos_gastos" id="nav-pagos_gastos">
-          <span class="nav-icon"><i class="ph ph-currency-circle-dollar"></i></span><span>Pagos y Gastos</span>
-        </a>
-      </nav>
+    <div class="nav-section-label nav-legacy-label">ERP INTERNO</div>
+    <a href="#" class="nav-item nav-legacy-item" data-section="clientes" id="nav-clientes">
+      <span class="nav-icon"><i class="ph ph-users"></i></span><span>Clientes</span>
+    </a>
+    <a href="#" class="nav-item nav-legacy-item" data-section="proyectos" id="nav-proyectos">
+      <span class="nav-icon"><i class="ph ph-rocket-launch"></i></span><span>Proyectos</span>
+    </a>
+    <a href="#" class="nav-item nav-legacy-item" data-section="actividades" id="nav-actividades">
+      <span class="nav-icon"><i class="ph ph-lightning"></i></span><span>Actividades</span>
+    </a>
+    <a href="#" class="nav-item nav-legacy-item" data-section="archivos" id="nav-archivos">
+      <span class="nav-icon"><i class="ph ph-folder"></i></span><span>Archivos</span>
+    </a>
+    <a href="#" class="nav-item nav-legacy-item" data-section="correos" id="nav-correos">
+      <span class="nav-icon"><i class="ph ph-envelope"></i></span><span>Correos</span>
+    </a>
+  </nav>
 
   <div class="sidebar-footer">
     <div class="user-avatar">A</div>
@@ -130,6 +144,11 @@
 
   <!-- ── DASHBOARD ─────────────────────────────────────────── -->
   <section class="section" id="section-dashboard">
+    <div class="dashboard-welcome">
+      <div><span class="eyebrow">ESPACIO DE TRABAJO</span><h2>Buenos días, Axel <span class="wave">✦</span></h2><p>Este es el pulso comercial de tu operación omnicanal.</p></div>
+      <div class="dashboard-welcome-actions"><span class="workspace-health"><span class="status-dot"></span> Sistema operativo</span><button class="btn btn-dark" onclick="navigateTo('chats')"><i class="ph ph-chats-circle"></i> Ver conversaciones</button></div>
+    </div>
+    <div class="dashboard-overview-grid"><article class="workspace-card overview-card overview-card-purple"><span>Chats pendientes</span><strong>0</strong><small>Sin conversaciones nuevas</small><i class="ph ph-chats-circle"></i></article><article class="workspace-card overview-card"><span>Citas de hoy</span><strong>0</strong><small>Agenda despejada</small><i class="ph ph-calendar-blank"></i></article><article class="workspace-card"><div class="card-heading"><h3>Actividad del agente</h3><span class="soft-badge gray">Hoy</span></div><div class="mini-progress"><div style="width: 0%"></div></div><p class="overview-note">Activa un canal para comenzar a medir respuestas automáticas.</p></article></div>
     <style>
       .welcome-banner {
         background: var(--blue-light);
@@ -277,6 +296,47 @@
       </div>
     </div>
 
+  </section>
+
+  <!-- ── AGENTE DE CHAT ─────────────────────────────────────── -->
+  <section class="section hidden" id="section-agent">
+    <div class="agent-status-banner agent-status-paused">
+      <div class="agent-status-icon"><i class="ph ph-warning-circle"></i></div>
+      <div><strong>Respuestas de IA pausadas</strong><span>Configura el proveedor, los límites y las tools para activar el agente.</span></div>
+      <button class="btn btn-dark" onclick="navigateTo('integraciones')">Revisar configuración</button>
+    </div>
+    <div class="section-heading-row">
+      <div><span class="eyebrow">INTELIGENCIA COMERCIAL</span><h2 class="workspace-heading">Agente de Chat</h2><p class="workspace-copy">Controla el comportamiento del agente y sus canales de atención.</p></div>
+      <div class="agent-toggle"><span class="status-dot status-dot-muted"></span> Agente pausado <button class="switch" aria-label="Activar agente"></button></div>
+    </div>
+    <div class="agent-grid">
+      <article class="workspace-card agent-card-large"><div class="card-heading"><div><span class="card-kicker">AGENTE ACTIVO</span><h3>Sofía Comercial</h3></div><span class="soft-badge purple">Google ADK</span></div><div class="agent-avatar"><i class="ph ph-robot"></i></div><p>Agente preparado para responder preguntas, consultar productos, calificar contactos y agendar citas.</p><div class="agent-metrics"><div><strong>0</strong><span>Conversaciones</span></div><div><strong>0%</strong><span>Respuesta IA</span></div><div><strong>0</strong><span>Escalaciones</span></div></div></article>
+      <article class="workspace-card"><div class="card-heading"><h3>Canales activos</h3><i class="ph ph-broadcast"></i></div><div class="channel-row"><i class="ph ph-whatsapp-logo whatsapp"></i><span>WhatsApp</span><span class="channel-off">Desconectado</span></div><div class="channel-row"><i class="ph ph-instagram-logo instagram"></i><span>Instagram</span><span class="channel-off">Desconectado</span></div><div class="channel-row"><i class="ph ph-facebook-logo facebook"></i><span>Messenger</span><span class="channel-off">Desconectado</span></div><div class="channel-row"><i class="ph ph-code"></i><span>Widget web</span><span class="channel-off">Configurar</span></div></article>
+      <article class="workspace-card"><div class="card-heading"><h3>Tools disponibles</h3><i class="ph ph-wrench"></i></div><div class="tool-chip-list"><span>Productos</span><span>FAQ</span><span>Agenda</span><span>Handoff</span><span>Gmail</span><span>Drive</span></div><button class="btn btn-outline btn-block" onclick="navigateTo('playground')">Abrir Playground <i class="ph ph-arrow-up-right"></i></button></article>
+    </div>
+  </section>
+
+  <!-- ── PLAYGROUND ─────────────────────────────────────────── -->
+  <section class="section hidden" id="section-playground">
+    <div class="section-heading-row"><div><span class="eyebrow">DESARROLLO</span><h2 class="workspace-heading">Playground</h2><p class="workspace-copy">Prueba instrucciones y observa la ejecución de tools antes de activar el agente.</p></div><a class="btn btn-dark" href="http://localhost:8000" target="_blank" rel="noreferrer"><i class="ph ph-arrow-square-out"></i> Abrir adk web</a></div>
+    <div class="playground-layout"><div class="workspace-card playground-editor"><div class="card-heading"><h3>Mensaje de prueba</h3><span class="soft-badge gray">Desarrollo</span></div><textarea class="playground-textarea" placeholder="Escribe una solicitud para el agente...">Quiero agendar una llamada esta semana</textarea><div class="playground-actions"><select class="select-control"><option>Sofía Comercial</option><option>Agente de ventas</option></select><button class="btn btn-primary"><i class="ph ph-paper-plane-tilt"></i> Ejecutar</button></div></div><div class="workspace-card event-console"><div class="card-heading"><h3>Eventos del agente</h3><span class="live-label"><span class="status-dot"></span> En espera</span></div><div class="empty-console"><i class="ph ph-brackets-curly"></i><strong>Sin eventos todavía</strong><span>Las llamadas a tools aparecerán aquí.</span></div></div></div>
+  </section>
+
+  <!-- ── CHATS ──────────────────────────────────────────────── -->
+  <section class="section hidden" id="section-chats">
+    <div class="chat-toolbar"><div class="chat-search"><i class="ph ph-magnifying-glass"></i><input placeholder="Buscar por nombre, correo o teléfono..."></div><button class="filter-pill">Estado <i class="ph ph-caret-down"></i></button><button class="filter-pill">Asesor <i class="ph ph-caret-down"></i></button><button class="filter-pill">Etapa <i class="ph ph-caret-down"></i></button><button class="btn btn-dark"><i class="ph ph-plus"></i> Nueva conversación</button></div>
+    <div class="inbox-layout"><aside class="inbox-list"><div class="inbox-list-head"><strong>Conversaciones</strong><span class="soft-badge gray">0</span></div><div class="inbox-empty"><i class="ph ph-chat-circle-dots"></i><span>No se encontraron chats</span><small>Los mensajes de tus canales aparecerán aquí.</small></div></aside><main class="conversation-panel"><div class="conversation-placeholder"><i class="ph ph-chat-centered-text"></i><h3>Selecciona una conversación</h3><p>Consulta mensajes, detalles del contacto y acciones comerciales.</p></div></main><aside class="conversation-details"><div class="details-placeholder"><i class="ph ph-user-circle"></i><span>Detalles del contacto</span><small>Selecciona un chat para ver su recorrido.</small></div></aside></div>
+  </section>
+
+  <!-- ── ANALÍTICAS ─────────────────────────────────────────── -->
+  <section class="section hidden" id="section-analiticas">
+    <div class="section-heading-row"><div><span class="eyebrow">INTELIGENCIA</span><h2 class="workspace-heading">Analíticas</h2><p class="workspace-copy">Mide atención automática, conversiones y desempeño comercial.</p></div><select class="select-control period-select"><option>Últimos 7 días</option><option>Este mes</option><option>Histórico</option></select></div>
+    <div class="analytics-kpis"><div class="workspace-card analytics-kpi"><span>Total de chats</span><strong>0</strong><small>Sin datos todavía</small></div><div class="workspace-card analytics-kpi"><span>Respuesta de IA</span><strong>0%</strong><small>Objetivo: 80%</small></div><div class="workspace-card analytics-kpi"><span>Tasa de escalación</span><strong>0%</strong><small>Sin datos todavía</small></div><div class="workspace-card analytics-kpi"><span>Latencia de IA</span><strong>0ms</strong><small>Sin datos todavía</small></div></div><div class="analytics-grid"><div class="workspace-card analytics-placeholder"><div class="card-heading"><h3>Conversaciones por etapa</h3><button class="icon-button"><i class="ph ph-download-simple"></i></button></div><div class="fake-bars"><span style="height:26%"></span><span style="height:45%"></span><span style="height:34%"></span><span style="height:62%"></span><span style="height:48%"></span><span style="height:76%"></span></div></div><div class="workspace-card analytics-placeholder"><div class="card-heading"><h3>Citas y conversiones</h3><button class="icon-button"><i class="ph ph-dots-three"></i></button></div><div class="analytics-empty"><i class="ph ph-chart-line-up"></i><span>Los eventos históricos generarán esta vista.</span></div></div></div>
+  </section>
+
+  <!-- ── INTEGRACIONES ──────────────────────────────────────── -->
+  <section class="section hidden" id="section-integraciones">
+    <div class="section-heading-row"><div><span class="eyebrow">CONEXIONES</span><h2 class="workspace-heading">Integraciones</h2><p class="workspace-copy">Conecta canales y servicios del espacio de trabajo.</p></div></div><div class="integration-grid"><article class="workspace-card integration-card"><div class="integration-icon whatsapp"><i class="ph ph-whatsapp-logo"></i></div><div><h3>WhatsApp Business API</h3><p>Recibe mensajes y envía plantillas aprobadas.</p></div><button class="btn btn-outline">Conectar</button></article><article class="workspace-card integration-card"><div class="integration-icon google"><i class="ph ph-calendar-blank"></i></div><div><h3>Google Calendar</h3><p>Disponibilidad, citas y recordatorios.</p></div><button class="btn btn-outline">Conectar</button></article><article class="workspace-card integration-card"><div class="integration-icon google"><i class="ph ph-envelope"></i></div><div><h3>Gmail</h3><p>Correos transaccionales y seguimiento.</p></div><button class="btn btn-outline">Conectar</button></article><article class="workspace-card integration-card"><div class="integration-icon drive"><i class="ph ph-google-drive-logo"></i></div><div><h3>Google Drive</h3><p>Conocimiento, documentos e imágenes.</p></div><button class="btn btn-outline">Conectar</button></article><article class="workspace-card integration-card"><div class="integration-icon sheets"><i class="ph ph-table"></i></div><div><h3>Google Sheets</h3><p>Catálogos, importaciones y exportaciones.</p></div><button class="btn btn-outline">Conectar</button></article><article class="workspace-card integration-card"><div class="integration-icon shopify"><i class="ph ph-shopping-bag"></i></div><div><h3>Shopify</h3><p>Productos, inventario y enlaces de pago.</p></div><button class="btn btn-outline">Conectar</button></article></div>
   </section>
 
   <!-- ── PROSPECTOS ─────────────────────────────────────────── -->

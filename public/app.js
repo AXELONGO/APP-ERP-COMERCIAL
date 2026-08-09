@@ -264,7 +264,7 @@ function navigateTo(section) {
   document.getElementById(`section-${section}`)?.classList.remove('hidden');
   document.getElementById(`nav-${section}`)?.classList.add('active');
   
-  const hasOwnCreateControl = section === 'actividades' || section === 'pagos_gastos' || section === 'correos';
+  const hasOwnCreateControl = ['actividades', 'pagos_gastos', 'correos', 'agent', 'playground', 'chats', 'analiticas', 'integraciones'].includes(section);
   const addLabels = {
     prospectos: '+ Nuevo prospecto',
     clientes: '+ Convertir prospecto',
@@ -276,21 +276,26 @@ function navigateTo(section) {
   const btnAdd = document.getElementById('btnAdd');
   btnAdd.innerHTML = addLabels[section] || '+ Nuevo registro';
   btnAdd.style.display = (section === 'dashboard' || section === 'tableros' || hasOwnCreateControl) ? 'none' : 'inline-block';
-  document.getElementById('btnDeleteMode').style.display = section === 'dashboard' ? 'none' : 'inline-block';
+  document.getElementById('btnDeleteMode').style.display = ['dashboard', 'agent', 'playground', 'chats', 'analiticas', 'integraciones'].includes(section) ? 'none' : 'inline-block';
   if (isDeleteMode) toggleDeleteMode();
 
   const titles = {
     dashboard: ['Dashboard', 'Vista general del negocio'],
-    prospectos: ['Prospectos', 'Contactos en seguimiento'],
+    agent: ['Agente de Chat', 'Inteligencia comercial y automatización'],
+    playground: ['Playground', 'Prueba instrucciones y tools del agente'],
+    chats: ['Chats', 'Bandeja compartida de conversaciones'],
+    prospectos: ['Contactos', 'Contactos y prospectos del negocio'],
     clientes: ['Clientes', 'Base de clientes activos'],
     proyectos: ['Proyectos', 'Control de proyectos activos'],
-    tableros: ['Tableros', 'Pipeline y tareas'],
-    citas: ['Citas', 'Agenda de reuniones'],
+    tableros: ['Embudo', 'Etapas comerciales y oportunidades'],
+    citas: ['Calendarios', 'Disponibilidad y citas del equipo'],
     actividades: ['Indicadores diarios', 'Registra llamadas, contenido y avances del día'],
-    cotizaciones: ['Cotizaciones', 'Cotizaciones y presupuestos'],
+    cotizaciones: ['Cotizador', 'Cotizaciones, planes y documentos comerciales'],
     archivos: ['Archivos', 'Documentos y archivos del negocio'],
     pagos_gastos: ['Pagos y Gastos', 'Control de ingresos y egresos'],
     correos: ['Correos', 'Campañas por Gmail para prospectos'],
+    analiticas: ['Analíticas', 'Conversaciones, citas y conversiones'],
+    integraciones: ['Integraciones', 'Canales y servicios conectados'],
   };
   const [title, sub] = titles[section] || ['', ''];
   document.getElementById('pageTitle').textContent = title;
@@ -364,6 +369,12 @@ document.getElementById('sidebarOverlay').addEventListener('click', () => {
   document.getElementById('sidebarOverlay').classList.add('hidden');
 });
 
+// Static omnichannel views become data-driven as the V2 API integrations are enabled.
+function loadAgent() {}
+function loadChats() {}
+function loadAnalyticsOverview() {}
+function loadIntegrations() {}
+
 // ── LOAD SECTION ─────────────────────────────────────────────────
 function loadSection(section) {
   // Bug 09: Limpiar selección al cambiar de pestaña
@@ -372,6 +383,11 @@ function loadSection(section) {
   
   const loaders = {
     dashboard: loadDashboard,
+    agent: loadAgent,
+    playground: loadAgent,
+    chats: loadChats,
+    analiticas: loadAnalyticsOverview,
+    integraciones: loadIntegrations,
     prospectos: loadProspectos,
     clientes: loadClientes,
     proyectos: loadProyectos,
