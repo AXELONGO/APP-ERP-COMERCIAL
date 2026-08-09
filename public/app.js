@@ -417,7 +417,7 @@ async function loadChats() {
     wahaConversations = result.data || [];
     if (!Array.isArray(window.prospectosData) || !window.prospectosData.length) window.prospectosData = await fetch(`${API}/api/prospectos`).then(response => response.json()).catch(() => []);
     renderWahaConversations();
-    if (activeWahaConversation) selectWahaConversation(activeWahaConversation.id);
+    if (activeWahaConversation) { const current = newestWahaConversation(wahaConversations, activeWahaConversation); if (current) selectWahaConversation(current.id); }
     if (!wahaPollTimer) wahaPollTimer = setInterval(() => { if (currentSection === 'chats') loadChats(); }, 30000);
   } catch (error) {
     if (error.status === 401) {
@@ -470,9 +470,26 @@ function wahaProspect(item) {
   return (window.prospectosData || []).find(prospect => String(prospect['Teléfono'] || '').replace(/\D/g, '').slice(-10) === suffix) || null;
 }
 
+function wahaConversationKey(item) {
+  const prospect = wahaProspect(item);
+  if (prospect?.['ID Prospectos']) return `prospect:${prospect['ID Prospectos']}`;
+  const phone = String(item?.phone_e164 || '').replace(/\D/g, '');
+  if (phone.length >= 8) return `phone:${phone.slice(-10)}`;
+  const name = wahaDisplayName(item).toLowerCase().trim();
+  return name ? `name:${name}` : `id:${item.id}`;
+}
+
+function newestWahaConversation(items, current = null) {
+  const key = current ? wahaConversationKey(current) : null;
+  return items.filter(item => !key || wahaConversationKey(item) === key).sort((a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0))[0] || current;
+}
+
 function renderWahaConversations() {
   const search = String(document.getElementById('wahaSearch')?.value || '').toLowerCase();
-  const rows = wahaConversations.filter(item => (wahaFilter === 'all' || item.status === wahaFilter) && `${item.contact_name} ${item.phone_e164}`.toLowerCase().includes(search));
+  const filtered = wahaConversations.filter(item => (wahaFilter === 'all' || item.status === wahaFilter) && `${item.contact_name} ${item.phone_e164}`.toLowerCase().includes(search));
+  const unique = new Map();
+  filtered.forEach(item => { const key = wahaConversationKey(item); const current = unique.get(key); if (!current || new Date(item.last_activity_at || 0) > new Date(current.last_activity_at || 0)) unique.set(key, item); });
+  const rows = [...unique.values()];
   document.getElementById('wahaConversationCount').textContent = rows.length;
   const list = document.getElementById('wahaConversationList');
   if (!rows.length) {

@@ -203,8 +203,17 @@ async function syncWahaHistory(workspaceId, config) {
 
 async function syncWahaRecent(workspaceId, config) {
   const identities = await loadWahaIdentities(config);
-  const messages = await getAllMessages(config.session, config, { limit: 1000, offset: 0 });
-  const rows = Array.isArray(messages) ? messages : [];
+  let rows = await getAllMessages(config.session, config, { limit: 1000, offset: 0 }).catch(() => []);
+  if (!Array.isArray(rows) || !rows.length) {
+    const chats = await getChats(config.session, config, { limit: 50, offset: 0 });
+    rows = [];
+    for (const chat of Array.isArray(chats) ? chats : []) {
+      const chatId = chat.id || chat.chatId;
+      if (!chatId) continue;
+      const messages = await getChatMessages(config.session, chatId, config, { limit: 50, offset: 0 }).catch(() => []);
+      rows.push(...(Array.isArray(messages) ? messages : []));
+    }
+  }
   const chatIds = new Set();
   const contactCache = new Map();
   let imported = 0;
