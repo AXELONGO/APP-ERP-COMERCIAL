@@ -72,11 +72,6 @@ async function uploadFile(fileBuffer, fileName, mimeType, parentFolderId = null)
     fields: 'id, name, mimeType, size, webViewLink, webContentLink, createdTime',
   });
 
-  await drive.permissions.create({
-    fileId: res.data.id,
-    requestBody: { role: 'reader', type: 'anyone' },
-  });
-
   return res.data;
 }
 

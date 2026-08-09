@@ -21,6 +21,7 @@ const token = signToken({
 });
 assert.equal(verifyToken(token).workspace_id, 'workspace-1');
 assert.equal(verifyToken(`${token}invalid`), null);
+assert.equal(verifyToken('not.a.valid.token'), null);
 
 const schema = fs.readFileSync(path.join(__dirname, '../../db/schema.sql'), 'utf8');
 for (const table of ['workspaces', 'users', 'contacts', 'conversations', 'messages', 'pipeline_stages', 'stage_history', 'appointments', 'integration_configs', 'contact_notes', 'catalog_products', 'quotes', 'quote_items', 'quote_events', 'audit_events']) {

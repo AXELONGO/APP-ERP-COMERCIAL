@@ -100,7 +100,7 @@ async function sendWebhook(module, payload, attempt = 1) {
   try {
     const res = await fetch('/api/webhook-proxy', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: window.v2Headers ? window.v2Headers() : { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, payload }),
     });
 
@@ -289,7 +289,7 @@ async function submitCampana(e) {
   try {
     const response = await fetch('/api/correos/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: window.v2Headers ? window.v2Headers() : { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         subject: promoType,
         html_body: `<p>Hola <strong>{{nombre}}</strong>,</p><p>${escapeCorreoCampaignHtml(copyText).replace(/\n/g, '<br>')}</p><p>Quedamos atentos.</p>`,

@@ -157,12 +157,13 @@ async function persistWahaAck(workspaceId, payload) {
 
 async function resolveWebhookWorkspace(event, req) {
   const suppliedSecret = req.get('x-erp-webhook-secret') || '';
+  if (!suppliedSecret) return null;
   if (process.env.WAHA_WEBHOOK_SECRET && suppliedSecret === process.env.WAHA_WEBHOOK_SECRET && process.env.WAHA_WORKSPACE_ID) return process.env.WAHA_WORKSPACE_ID;
   const rows = await query("SELECT workspace_id FROM integration_configs WHERE provider = 'waha' AND enabled = true");
   for (const row of rows.rows) {
     const saved = await getIntegrationConfig(row.workspace_id, 'waha');
     if (saved.config.webhookSecret && saved.config.webhookSecret === suppliedSecret) return row.workspace_id;
-    if (!saved.config.webhookSecret && event.session && saved.config.session === event.session) return row.workspace_id;
+    if (saved.config.webhookSecret && saved.config.webhookSecret === suppliedSecret && (!event.session || saved.config.session === event.session)) return row.workspace_id;
   }
   return null;
 }

@@ -17,7 +17,7 @@ function globalErrorHandler(err, req, res, next) {
   });
 
   res.status(err.status || 500).json({
-    error: err.message || 'Error interno del servidor',
+    error: err.status && err.status < 500 ? (err.message || 'Solicitud inválida') : 'Error interno del servidor',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 }

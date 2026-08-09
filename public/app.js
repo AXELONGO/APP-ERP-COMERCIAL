@@ -392,6 +392,8 @@ async function v2Fetch(path, options = {}) {
   }
   return data;
 }
+window.v2Headers = v2Headers;
+window.v2Fetch = v2Fetch;
 
 function setWahaStatus(text, detail, connected = false) {
   const dot = document.getElementById('wahaStatusDot');
@@ -3622,9 +3624,9 @@ function isValidCorreo(value) {
 }
 
 async function loadCorreos() {
-  window.correosProspectosData = await fetch(`${API}/api/correos/prospectos`).then(r => r.json()).catch(() => []);
+  window.correosProspectosData = await v2Fetch('/api/correos/prospectos').catch(() => []);
   renderProspectosCorreo();
-  const status = await fetch(`${API}/api/correos/auth/status`).then(r => r.json()).catch(() => ({ configured: false, authorized: false }));
+  const status = await v2Fetch('/api/correos/auth/status').catch(() => ({ configured: false, authorized: false }));
   const statusEl = document.getElementById('correoAuthStatus');
   if (!statusEl) return;
   if (status.authorized) {
@@ -3691,10 +3693,11 @@ async function guardarBorradorCorreo() {
   const feedback = document.getElementById('correo-send-feedback');
   const payload = obtenerPayloadCorreo();
   if (!payload.subject) { feedback.textContent = 'Escribe un asunto para guardar el borrador.'; return; }
-  const response = await fetch(`${API}/api/correos/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  const result = await response.json();
-  feedback.textContent = response.ok ? `Borrador guardado: ${result.campaign_id}` : (result.error || 'No se pudo guardar el borrador');
-  showToast(response.ok ? `Borrador guardado: ${result.campaign_id}` : (result.error || 'No se pudo guardar el borrador'), !response.ok);
+  try {
+    const result = await v2Fetch('/api/correos/draft', { method: 'POST', body: JSON.stringify(payload) });
+    feedback.textContent = `Borrador guardado: ${result.campaign_id}`;
+    showToast(`Borrador guardado: ${result.campaign_id}`);
+  } catch (error) { feedback.textContent = error.message; showToast(error.message, true); }
 }
 
 function switchCorreoEditor(mode) {

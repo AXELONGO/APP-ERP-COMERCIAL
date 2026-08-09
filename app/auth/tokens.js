@@ -22,17 +22,19 @@ function signToken(payload) {
 }
 
 function verifyToken(token) {
-  const [body, signature] = String(token || '').split('.');
-  if (!body || !signature) return null;
+  try {
+    const [body, signature] = String(token || '').split('.');
+    if (!body || !signature) return null;
 
-  const expected = crypto.createHmac('sha256', getSecret()).update(body).digest('base64url');
-  const left = Buffer.from(signature);
-  const right = Buffer.from(expected);
-  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
+    const expected = crypto.createHmac('sha256', getSecret()).update(body).digest('base64url');
+    const left = Buffer.from(signature);
+    const right = Buffer.from(expected);
+    if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
 
-  const payload = decode(body);
-  if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) return null;
-  return payload;
+    const payload = decode(body);
+    if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    return payload;
+  } catch (_) { return null; }
 }
 
 module.exports = { signToken, verifyToken };

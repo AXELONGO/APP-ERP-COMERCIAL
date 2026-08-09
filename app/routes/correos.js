@@ -1,6 +1,7 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const { getSheets, getPublicData, getSheetId, SPREADSHEET_ID } = require('../config/sheets');
 const { getGmail, getGmailAuthUrl, saveGmailTokenFromCode, hasGmailToken } = require('../config/gmail');
+const { requireV2Auth, requireRole } = require('../middleware/v2Auth');
 
 const SHEET_NAME = 'Campañas';
 const HEADERS = ['campaign_id', 'subject', 'html_body', 'text_body', 'recipients', 'status', 'send_stats', 'created_at', 'updated_at'];
@@ -107,17 +108,17 @@ function registerCorreosRoutes(app) {
     res.redirect('/?gmail=connected');
   }));
 
-  app.get('/api/correos/auth/status', (req, res) => {
+  app.get('/api/correos/auth/status', requireV2Auth, (req, res) => {
     let configured = false;
     try { getGmailAuthUrl(); configured = true; } catch (_) {}
     res.json({ configured, authorized: hasGmailToken(), scope: 'https://www.googleapis.com/auth/gmail.send', authUrl: configured ? '/api/auth/gmail' : null, reconnect_required: configured && !hasGmailToken() });
   });
 
-  app.get('/api/correos/campanas', asyncHandler(async (req, res) => {
+  app.get('/api/correos/campanas', requireV2Auth, asyncHandler(async (req, res) => {
     try { res.json((await getPublicData(SHEET_NAME)).filter(item => item.campaign_id)); } catch (_) { res.json([]); }
   }));
 
-  app.get('/api/correos/prospectos', asyncHandler(async (req, res) => {
+  app.get('/api/correos/prospectos', requireV2Auth, asyncHandler(async (req, res) => {
     const prospects = await getPublicData('Prospectos');
     const seen = new Set();
     const recipients = prospects.map(prospect => {
@@ -137,7 +138,7 @@ function registerCorreosRoutes(app) {
     res.json(recipients);
   }));
 
-  app.post('/api/correos/draft', asyncHandler(async (req, res) => {
+  app.post('/api/correos/draft', requireV2Auth, requireRole('admin', 'supervisor', 'advisor'), asyncHandler(async (req, res) => {
     const recipients = normalizeRecipients(req.body.recipients);
     if (!String(req.body.subject || '').trim()) return res.status(400).json({ error: 'El asunto es obligatorio' });
     const now = new Date().toISOString();
@@ -156,7 +157,7 @@ function registerCorreosRoutes(app) {
     res.json({ success: true, campaign_id: campaign.campaign_id, status: campaign.status });
   }));
 
-  app.post('/api/correos/send', asyncHandler(async (req, res) => {
+  app.post('/api/correos/send', requireV2Auth, requireRole('admin', 'supervisor', 'advisor'), asyncHandler(async (req, res) => {
     const subject = String(req.body.subject || '').trim();
     const htmlBody = String(req.body.html_body || '');
     const textBody = String(req.body.text_body || '').trim();

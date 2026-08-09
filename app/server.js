@@ -65,7 +65,7 @@ let timeOffset = 0;
 })();
 
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : (process.env.TRUST_PROXY || false));
 const PORT = process.env.PORT || 3000;
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
@@ -77,7 +77,8 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-app.use(cors());
+const corsOrigins = String(process.env.CORS_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
+app.use(cors(corsOrigins.length ? { origin: corsOrigins } : { origin: false }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(fileUpload({

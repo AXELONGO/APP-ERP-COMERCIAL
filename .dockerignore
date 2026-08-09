@@ -7,3 +7,12 @@ npm-debug.log
 Dockerfile
 docker-compose.yml
 README.md
+.env
+.env.*
+config.env
+credentials.json
+credentials.*.json
+gmail-token.json
+drive-token.json
+*.log
+*.patch
