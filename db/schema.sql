@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE INDEX IF NOT EXISTS conversations_workspace_activity_idx
   ON conversations (workspace_id, last_activity_at DESC);
 
+CREATE UNIQUE INDEX IF NOT EXISTS conversations_workspace_provider_unique
+  ON conversations (workspace_id, provider_conversation_id)
+  WHERE provider_conversation_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,

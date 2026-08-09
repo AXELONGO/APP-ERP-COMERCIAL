@@ -369,9 +369,146 @@ document.getElementById('sidebarOverlay').addEventListener('click', () => {
   document.getElementById('sidebarOverlay').classList.add('hidden');
 });
 
-// Static omnichannel views become data-driven as the V2 API integrations are enabled.
+// ── WAHA SHARED INBOX ─────────────────────────────────────────────
+const V2_TOKEN_KEY = 'erp_v2_token';
+let wahaConversations = [];
+let activeWahaConversation = null;
+let wahaFilter = 'all';
+let wahaPollTimer = null;
+
+function v2Headers(extra = {}) {
+  const token = localStorage.getItem(V2_TOKEN_KEY);
+  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra };
+}
+
+async function v2Fetch(path, options = {}) {
+  const response = await fetch(path, { ...options, headers: v2Headers(options.headers || {}) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.error || `HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+function setWahaStatus(text, detail, connected = false) {
+  const dot = document.getElementById('wahaStatusDot');
+  const label = document.getElementById('wahaStatusText');
+  const sub = document.getElementById('wahaStatusDetail');
+  if (dot) dot.className = `status-dot ${connected ? '' : 'status-dot-muted'}`;
+  if (label) label.textContent = text;
+  if (sub) sub.textContent = detail;
+}
+
+async function loadChats() {
+  const loginButton = document.getElementById('wahaLoginButton');
+  try {
+    const status = await v2Fetch('/api/v2/waha/status');
+    loginButton?.style.setProperty('display', 'none');
+    document.getElementById('wahaStartButton').style.display = status.session?.status === 'WORKING' ? 'none' : 'inline-flex';
+    document.getElementById('wahaQrButton').style.display = ['SCAN_QR_CODE', 'STARTING'].includes(status.session?.status) ? 'inline-flex' : 'none';
+    setWahaStatus(status.configured ? `WAHA: ${status.session?.status || 'configurado'}` : 'WAHA no configurado', status.configured ? 'La sesión está conectada al CRM.' : 'Configura WAHA_BASE_URL en las variables del servidor.', status.session?.status === 'WORKING');
+    const result = await v2Fetch('/api/v2/conversations?limit=100');
+    wahaConversations = result.data || [];
+    renderWahaConversations();
+    if (activeWahaConversation) selectWahaConversation(activeWahaConversation.id);
+    if (!wahaPollTimer) wahaPollTimer = setInterval(() => { if (currentSection === 'chats') loadChats(); }, 10000);
+  } catch (error) {
+    if (error.status === 401) {
+      if (loginButton) loginButton.style.display = 'inline-flex';
+      setWahaStatus('Sesión del CRM requerida', 'Inicia sesión para consultar la bandeja compartida.', false);
+    } else {
+      setWahaStatus('WAHA no disponible', error.message, false);
+    }
+  }
+}
+
+async function loginV2() {
+  const email = window.prompt('Correo del administrador del ERP:');
+  if (!email) return;
+  const password = window.prompt('Contraseña:');
+  if (!password) return;
+  try {
+    const result = await fetch('/api/v2/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }).then(async response => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'No se pudo iniciar sesión');
+      return data;
+    });
+    localStorage.setItem(V2_TOKEN_KEY, result.token);
+    showToast('<i class="ph-fill ph-check-circle" style="color:#10b981"></i> Sesión del CRM iniciada');
+    loadChats();
+  } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
+}
+
+function escapeWahaHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+}
+
+function renderWahaConversations() {
+  const search = String(document.getElementById('wahaSearch')?.value || '').toLowerCase();
+  const rows = wahaConversations.filter(item => (wahaFilter === 'all' || item.status === wahaFilter) && `${item.contact_name} ${item.phone_e164}`.toLowerCase().includes(search));
+  document.getElementById('wahaConversationCount').textContent = rows.length;
+  const list = document.getElementById('wahaConversationList');
+  if (!rows.length) {
+    list.innerHTML = '<div class="inbox-empty"><i class="ph ph-chat-circle-dots"></i><span>No se encontraron chats</span><small>Los mensajes de WAHA aparecerán aquí.</small></div>';
+    return;
+  }
+  list.innerHTML = rows.map(item => `<button class="waha-conversation-item ${activeWahaConversation?.id === item.id ? 'active' : ''}" onclick="selectWahaConversation('${item.id}')"><span class="waha-contact-avatar">${escapeWahaHtml((item.contact_name || '?').slice(0, 1).toUpperCase())}</span><span class="waha-conversation-copy"><strong>${escapeWahaHtml(item.contact_name || item.phone_e164)}</strong><small>${escapeWahaHtml(item.channel || 'whatsapp')} · ${escapeWahaHtml(item.status || 'new')}</small></span><time>${item.last_activity_at ? new Date(item.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</time></button>`).join('');
+}
+
+function setWahaFilter(filter) { wahaFilter = filter; renderWahaConversations(); }
+async function refreshWahaChats() { await loadChats(); showToast('<i class="ph-bold ph-arrows-clockwise"></i> Chats actualizados'); }
+
+async function selectWahaConversation(id) {
+  activeWahaConversation = wahaConversations.find(item => item.id === id) || null;
+  renderWahaConversations();
+  if (!activeWahaConversation) return;
+  document.getElementById('wahaThread').classList.remove('hidden');
+  document.getElementById('wahaThreadEmpty').classList.add('hidden');
+  document.getElementById('wahaThreadName').textContent = activeWahaConversation.contact_name || activeWahaConversation.phone_e164;
+  document.getElementById('wahaThreadPhone').textContent = activeWahaConversation.phone_e164 || '';
+  document.getElementById('wahaContactDetails').innerHTML = `<i class="ph ph-user-circle"></i><strong>${escapeWahaHtml(activeWahaConversation.contact_name || 'Contacto')}</strong><small>${escapeWahaHtml(activeWahaConversation.phone_e164 || '')}</small><span class="soft-badge gray">Etapa: ${escapeWahaHtml(activeWahaConversation.pipeline_stage || 'new')}</span>`;
+  try {
+    const result = await v2Fetch(`/api/v2/conversations/${encodeURIComponent(id)}/messages?limit=200`);
+    const messages = result.data || [];
+    document.getElementById('wahaMessages').innerHTML = messages.length ? messages.map(message => `<div class="waha-message ${message.direction === 'outbound' ? 'outbound' : 'inbound'}"><div>${escapeWahaHtml(message.body).replace(/\n/g, '<br>')}</div><time>${new Date(message.created_at).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</time></div>`).join('') : '<div class="waha-message-empty">No hay mensajes guardados todavía.</div>';
+    const container = document.getElementById('wahaMessages');
+    container.scrollTop = container.scrollHeight;
+  } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
+}
+
+async function sendWahaMessage(event) {
+  event.preventDefault();
+  if (!activeWahaConversation) return;
+  const input = document.getElementById('wahaMessageInput');
+  const body = input.value.trim();
+  if (!body) return;
+  const button = event.submitter;
+  button.disabled = true;
+  try {
+    await v2Fetch('/api/v2/waha/send', { method: 'POST', body: JSON.stringify({ conversation_id: activeWahaConversation.id, body }) });
+    input.value = '';
+    await selectWahaConversation(activeWahaConversation.id);
+  } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
+  finally { button.disabled = false; }
+}
+
+async function startWahaSession() {
+  try { await v2Fetch('/api/v2/waha/session/start', { method: 'POST', body: '{}' }); showToast('<i class="ph-fill ph-check-circle" style="color:#10b981"></i> Sesión WAHA iniciada'); await loadChats(); }
+  catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
+}
+
+async function showWahaQr() {
+  try {
+    const result = await v2Fetch('/api/v2/waha/qr');
+    const qr = result.data;
+    if (qr?.data) window.open(`data:${qr.mimetype || 'image/png'};base64,${qr.data}`, '_blank', 'noopener');
+    else showToast('WAHA no devolvió un QR todavía.');
+  } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
+}
+
 function loadAgent() {}
-function loadChats() {}
 function loadAnalyticsOverview() {}
 function loadIntegrations() {}
 

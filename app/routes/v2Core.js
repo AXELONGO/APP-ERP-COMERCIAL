@@ -111,6 +111,23 @@ function registerV2CoreRoutes(app) {
     }
   });
 
+  app.get('/api/v2/conversations/:id/messages', requireV2Auth, async (req, res, next) => {
+    try {
+      const limit = parseLimit(req.query.limit, 100);
+      const result = await query(
+        `SELECT m.id, m.conversation_id, m.direction, m.channel, m.body,
+                m.provider_message_id, m.delivery_status, m.created_by, m.created_at
+         FROM messages m JOIN conversations c ON c.id = m.conversation_id
+         WHERE m.conversation_id = $1 AND m.workspace_id = $2 AND c.workspace_id = $2
+         ORDER BY m.created_at ASC LIMIT $3`,
+        [req.params.id, req.workspaceId, limit]
+      );
+      res.json({ data: result.rows, limit });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post('/api/v2/conversations/:id/messages', requireV2Auth, async (req, res, next) => {
     const client = await requireClient(next);
     if (!client) return;
