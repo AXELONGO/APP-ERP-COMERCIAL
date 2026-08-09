@@ -15,9 +15,14 @@ const { getIntegrationConfig } = require('../services/integrationConfig');
 
 function phoneFromChatId(chatId) {
   const value = String(chatId || '').trim();
-  if (!value || !value.endsWith('@c.us')) return null;
-  const digits = value.slice(0, -5).replace(/\D/g, '');
-  return digits ? `+${digits}` : null;
+  if (!value) return null;
+  if (value.endsWith('@s.whatsapp.net')) return `+${value.slice(0, -15).replace(/\D/g, '')}`;
+  if (value.endsWith('@c.us')) {
+    const digits = value.slice(0, -5).replace(/\D/g, '');
+    return digits ? `+${digits}` : null;
+  }
+  if (value.endsWith('@g.us') || value.endsWith('@lid') || value.endsWith('@newsletter')) return value;
+  return null;
 }
 
 function chatIdFromPhone(phone) {
@@ -66,7 +71,7 @@ async function ensureConversation(client, workspaceId, chatId, displayName) {
 
 async function persistWahaMessage(event) {
   const payload = event?.payload || {};
-  const chatId = payload.fromMe ? payload.to : payload.from;
+  const chatId = payload.fromMe && payload.to && payload.to !== 'me' ? payload.to : payload.from;
   const conversationId = chatId && event.workspaceId
     ? await persistMessageForWorkspace(event.workspaceId, chatId, payload)
     : null;
@@ -141,8 +146,8 @@ async function syncWahaHistory(workspaceId, config) {
     if (!chatId || chatId === 'status@broadcast') continue;
     const messages = await getChatMessages(config.session, chatId, config, { limit: 100 });
     for (const payload of Array.isArray(messages) ? messages : []) {
-      await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload });
-      imported += 1;
+      const conversationId = await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload });
+      if (conversationId) imported += 1;
     }
   }
   return { chats: rows.length, messages: imported };
