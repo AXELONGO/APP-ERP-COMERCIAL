@@ -3,10 +3,13 @@ const { requireV2Auth, requireRole } = require('../middleware/v2Auth');
 const {
   getWahaConfig,
   getSession,
+  getChats,
+  getChatMessages,
   configureAndStartSession,
   stopSession,
   getQr,
   sendText,
+  sendFile,
 } = require('../services/wahaClient');
 const { getIntegrationConfig } = require('../services/integrationConfig');
 
@@ -117,6 +120,34 @@ async function persistWahaAck(workspaceId, payload) {
   );
 }
 
+async function resolveWebhookWorkspace(event, req) {
+  const suppliedSecret = req.get('x-erp-webhook-secret') || '';
+  if (process.env.WAHA_WEBHOOK_SECRET && suppliedSecret === process.env.WAHA_WEBHOOK_SECRET && process.env.WAHA_WORKSPACE_ID) return process.env.WAHA_WORKSPACE_ID;
+  const rows = await query("SELECT workspace_id FROM integration_configs WHERE provider = 'waha' AND enabled = true");
+  for (const row of rows.rows) {
+    const saved = await getIntegrationConfig(row.workspace_id, 'waha');
+    if (saved.config.webhookSecret && saved.config.webhookSecret === suppliedSecret) return row.workspace_id;
+    if (!saved.config.webhookSecret && event.session && saved.config.session === event.session) return row.workspace_id;
+  }
+  return null;
+}
+
+async function syncWahaHistory(workspaceId, config) {
+  const chats = await getChats(config.session, config, { limit: 100 });
+  const rows = Array.isArray(chats) ? chats : [];
+  let imported = 0;
+  for (const chat of rows) {
+    const chatId = chat.id || chat.chatId;
+    if (!chatId || chatId === 'status@broadcast') continue;
+    const messages = await getChatMessages(config.session, chatId, config, { limit: 100 });
+    for (const payload of Array.isArray(messages) ? messages : []) {
+      await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload });
+      imported += 1;
+    }
+  }
+  return { chats: rows.length, messages: imported };
+}
+
 function registerWahaRoutes(app) {
   app.get('/api/v2/waha/status', requireV2Auth, async (req, res, next) => {
     try {
@@ -134,6 +165,14 @@ function registerWahaRoutes(app) {
       if (!webhookUrl) return res.status(503).json({ error: 'Configura WAHA_WEBHOOK_URL o PUBLIC_BASE_URL antes de iniciar la sesión' });
       const session = await configureAndStartSession({ webhookUrl, webhookSecret: config.webhookSecret || process.env.WAHA_WEBHOOK_SECRET, wahaConfig: config });
       res.json({ data: session });
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/v2/waha/sync', requireV2Auth, requireRole('admin', 'supervisor'), async (req, res, next) => {
+    try {
+      const config = await workspaceWahaConfig(req.workspaceId);
+      const result = await syncWahaHistory(req.workspaceId, config);
+      res.json({ ok: true, ...result });
     } catch (error) { next(error); }
   });
 
@@ -170,15 +209,42 @@ function registerWahaRoutes(app) {
     } catch (error) { next(error); }
   });
 
+  app.post('/api/v2/waha/send-file', requireV2Auth, requireRole('admin', 'supervisor', 'advisor'), async (req, res, next) => {
+    const { conversation_id: conversationId, file, caption = '', reply_to: replyTo = null } = req.body || {};
+    if (!conversationId || !file?.data || !file?.filename) return res.status(400).json({ error: 'conversation_id y archivo son obligatorios' });
+    if (String(file.data).length > 14 * 1024 * 1024) return res.status(413).json({ error: 'El archivo no puede superar 10 MB' });
+    try {
+      const conversation = await query(
+        `SELECT c.id, c.provider_conversation_id, ct.phone_e164
+         FROM conversations c JOIN contacts ct ON ct.id = c.contact_id
+         WHERE c.id = $1 AND c.workspace_id = $2 AND c.channel = 'whatsapp'`,
+        [conversationId, req.workspaceId]
+      );
+      const row = conversation.rows[0];
+      const chatId = row?.provider_conversation_id || chatIdFromPhone(row?.phone_e164);
+      if (!row || !chatId) return res.status(404).json({ error: 'Conversación WAHA no encontrada' });
+      const config = await workspaceWahaConfig(req.workspaceId);
+      const result = await sendFile({ session: config.session, wahaConfig: config, chatId, file: { data: String(file.data).replace(/^data:[^;]+;base64,/, ''), mimetype: file.mimetype || 'application/octet-stream', filename: String(file.filename).slice(0, 180) }, caption: String(caption).slice(0, 2000), replyTo });
+      const body = String(caption).trim() || `[archivo] ${String(file.filename).slice(0, 180)}`;
+      const inserted = await query(
+        `INSERT INTO messages (workspace_id,conversation_id,direction,channel,body,provider_message_id,delivery_status,created_by)
+         VALUES ($1,$2,'outbound','whatsapp',$3,$4,'sent',$5) RETURNING *`,
+        [req.workspaceId, conversationId, body, result?.id || result?.messageId || null, req.user.sub]
+      );
+      await query(`UPDATE conversations SET last_activity_at=now(), updated_at=now() WHERE id=$1 AND workspace_id=$2`, [conversationId, req.workspaceId]);
+      res.status(201).json({ data: inserted.rows[0] });
+    } catch (error) { next(error); }
+  });
+
   app.post('/api/v2/waha/webhook', async (req, res) => {
-    if (!webhookSecretMatches(req)) return res.status(401).json({ error: 'Webhook no autorizado' });
     const event = req.body || {};
+    const workspaceId = await resolveWebhookWorkspace(event, req).catch(() => null);
+    if (!workspaceId) return res.status(401).json({ error: 'Webhook no autorizado o workspace no configurado' });
     if (event.event === 'message' || event.event === 'message.any') {
-      const workspaceId = process.env.WAHA_WORKSPACE_ID;
-      if (workspaceId) await persistWahaMessage({ ...event, workspaceId });
+      await persistWahaMessage({ ...event, workspaceId });
     }
-    if (event.event === 'message.ack' && process.env.WAHA_WORKSPACE_ID) {
-      await persistWahaAck(process.env.WAHA_WORKSPACE_ID, event.payload);
+    if (event.event === 'message.ack') {
+      await persistWahaAck(workspaceId, event.payload);
     }
     res.status(200).json({ received: true });
   });

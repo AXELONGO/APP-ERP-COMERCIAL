@@ -45,12 +45,24 @@ function sessionPath(session, action = '') {
   return `/api/sessions/${encodeURIComponent(session)}${action ? `/${action}` : ''}`;
 }
 
+function chatPath(session, chatId = '') {
+  return `/api/${encodeURIComponent(session)}/chats${chatId ? `/${encodeURIComponent(chatId)}` : ''}`;
+}
+
 async function getSessions(wahaConfig = {}) {
   return requestWaha('/api/sessions?all=true', { wahaConfig });
 }
 
 async function getSession(session = getWahaConfig().session, wahaConfig = {}) {
   return requestWaha(sessionPath(session), { wahaConfig });
+}
+
+async function getChats(session = getWahaConfig().session, wahaConfig = {}, { limit = 100, offset = 0 } = {}) {
+  return requestWaha(`${chatPath(session)}?limit=${limit}&offset=${offset}&sortBy=messageTimestamp&sortOrder=desc`, { wahaConfig });
+}
+
+async function getChatMessages(session, chatId, wahaConfig = {}, { limit = 100, offset = 0 } = {}) {
+  return requestWaha(`${chatPath(session, chatId)}/messages?limit=${limit}&offset=${offset}&downloadMedia=false`, { wahaConfig });
 }
 
 async function configureAndStartSession({ webhookUrl, webhookSecret, wahaConfig = {} } = {}) {
@@ -90,13 +102,23 @@ async function sendText({ session = getWahaConfig().session, chatId, text, reply
   });
 }
 
+async function sendFile({ session = getWahaConfig().session, chatId, file, caption, replyTo, wahaConfig = {} } = {}) {
+  return requestWaha('/api/sendFile', {
+    ...jsonOptions('POST', { session, chatId, file, ...(caption ? { caption } : {}), ...(replyTo ? { reply_to: replyTo } : {}) }),
+    wahaConfig,
+  });
+}
+
 module.exports = {
   getWahaConfig,
   requestWaha,
   getSessions,
   getSession,
+  getChats,
+  getChatMessages,
   configureAndStartSession,
   stopSession,
   getQr,
   sendText,
+  sendFile,
 };

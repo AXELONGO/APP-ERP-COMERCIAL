@@ -466,6 +466,13 @@ function renderWahaConversations() {
 
 function setWahaFilter(filter) { wahaFilter = filter; renderWahaConversations(); }
 async function refreshWahaChats() { await loadChats(); showToast('<i class="ph-bold ph-arrows-clockwise"></i> Chats actualizados'); }
+async function syncWahaHistory() {
+  try {
+    const result = await v2Fetch('/api/v2/waha/sync', { method: 'POST', body: '{}' });
+    await loadChats();
+    showToast(`<i class="ph-fill ph-check-circle" style="color:#10b981"></i> Importados ${result.messages} mensajes de ${result.chats} chats`);
+  } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
+}
 
 async function selectWahaConversation(id) {
   activeWahaConversation = wahaConversations.find(item => item.id === id) || null;
@@ -501,6 +508,26 @@ async function sendWahaMessage(event) {
     await selectWahaConversation(activeWahaConversation.id);
   } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
   finally { button.disabled = false; }
+}
+
+async function sendWahaFile(event) {
+  const input = event.target;
+  const file = input.files?.[0];
+  if (!file || !activeWahaConversation) return;
+  if (file.size > 10 * 1024 * 1024) { input.value = ''; return showToast('El archivo no puede superar 10 MB', true); }
+  const data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  try {
+    await v2Fetch('/api/v2/waha/send-file', { method: 'POST', body: JSON.stringify({ conversation_id: activeWahaConversation.id, file: { data, filename: file.name, mimetype: file.type || 'application/octet-stream' }, caption: document.getElementById('wahaMessageInput').value.trim() }) });
+    document.getElementById('wahaMessageInput').value = '';
+    await selectWahaConversation(activeWahaConversation.id);
+    showToast('<i class="ph-fill ph-check-circle" style="color:#10b981"></i> Archivo enviado');
+  } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
+  finally { input.value = ''; }
 }
 
 async function startWahaSession() {
