@@ -13,7 +13,8 @@
     "migrate:pipelines": "node scripts/migrations/migrate_dynamic_pipelines.js",
     "test:v2": "node scripts/test/test_v2_core.js",
     "test:waha": "node scripts/test/test_waha.js",
-    "test": "npm run test:communication && npm run test:pipeline && npm run test:v2 && npm run test:waha"
+    "test:quotes": "node scripts/test/test_quotes.js",
+    "test": "npm run test:communication && npm run test:pipeline && npm run test:v2 && npm run test:waha && npm run test:quotes"
   },
   "keywords": [],
   "author": "",

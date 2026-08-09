@@ -166,3 +166,99 @@ CREATE TABLE IF NOT EXISTS integration_configs (
 
 CREATE INDEX IF NOT EXISTS integration_configs_workspace_idx
   ON integration_configs (workspace_id, updated_at DESC);
+
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company text;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS channel text;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS priority text NOT NULL DEFAULT 'normal';
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS attention_status text NOT NULL DEFAULT 'active';
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tax_data jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS contact_notes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  contact_id uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  body text NOT NULL,
+  attachments jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS contact_notes_contact_created_idx
+  ON contact_notes (workspace_id, contact_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS catalog_products (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  description text,
+  price numeric(14,2) NOT NULL DEFAULT 0 CHECK (price >= 0),
+  currency text NOT NULL DEFAULT 'MXN',
+  available boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS catalog_products_workspace_available_idx
+  ON catalog_products (workspace_id, available, name);
+
+CREATE TABLE IF NOT EXISTS quotes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  quote_number text NOT NULL,
+  contact_id uuid REFERENCES contacts(id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','unsaved','saved','sent','viewed','accepted','rejected','expired','cancelled')),
+  currency text NOT NULL DEFAULT 'MXN',
+  valid_until date,
+  subtotal numeric(14,2) NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
+  discount_type text NOT NULL DEFAULT 'fixed' CHECK (discount_type IN ('fixed','percentage')),
+  discount_value numeric(14,2) NOT NULL DEFAULT 0 CHECK (discount_value >= 0),
+  discount_amount numeric(14,2) NOT NULL DEFAULT 0 CHECK (discount_amount >= 0),
+  tax_rate numeric(7,4) NOT NULL DEFAULT 0 CHECK (tax_rate >= 0),
+  tax_amount numeric(14,2) NOT NULL DEFAULT 0 CHECK (tax_amount >= 0),
+  total numeric(14,2) NOT NULL DEFAULT 0 CHECK (total >= 0),
+  payment_plan jsonb NOT NULL DEFAULT '{}'::jsonb,
+  fiscal_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  payment_method jsonb NOT NULL DEFAULT '{}'::jsonb,
+  send_channel text,
+  message text,
+  version integer NOT NULL DEFAULT 1,
+  locked_at timestamptz,
+  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, quote_number)
+);
+
+CREATE INDEX IF NOT EXISTS quotes_workspace_updated_idx
+  ON quotes (workspace_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS quote_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id uuid NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  product_id uuid REFERENCES catalog_products(id) ON DELETE SET NULL,
+  name text NOT NULL,
+  description text,
+  quantity numeric(12,2) NOT NULL DEFAULT 1 CHECK (quantity >= 1),
+  unit_price numeric(14,2) NOT NULL DEFAULT 0 CHECK (unit_price >= 0),
+  currency text NOT NULL DEFAULT 'MXN',
+  position integer NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS quote_items_quote_position_idx
+  ON quote_items (quote_id, position);
+
+CREATE TABLE IF NOT EXISTS quote_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  quote_id uuid NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  event_type text NOT NULL,
+  channel text,
+  actor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS quote_events_quote_created_idx
+  ON quote_events (workspace_id, quote_id, created_at DESC);

@@ -387,6 +387,7 @@ async function v2Fetch(path, options = {}) {
   if (!response.ok) {
     const error = new Error(data.error || `HTTP ${response.status}`);
     error.status = response.status;
+    error.data = data;
     throw error;
   }
   return data;
@@ -467,6 +468,8 @@ async function selectWahaConversation(id) {
   document.getElementById('wahaThread').classList.remove('hidden');
   document.getElementById('wahaThreadEmpty').classList.add('hidden');
   document.getElementById('wahaThreadName').textContent = activeWahaConversation.contact_name || activeWahaConversation.phone_e164;
+  document.getElementById('wahaThreadName').onclick = () => activeWahaConversation.contact_id && openContactPanel(activeWahaConversation.contact_id);
+  document.getElementById('wahaThreadName').classList.add('contact-name-link');
   document.getElementById('wahaThreadPhone').textContent = activeWahaConversation.phone_e164 || '';
   document.getElementById('wahaContactDetails').innerHTML = `<i class="ph ph-user-circle"></i><strong>${escapeWahaHtml(activeWahaConversation.contact_name || 'Contacto')}</strong><small>${escapeWahaHtml(activeWahaConversation.phone_e164 || '')}</small><span class="soft-badge gray">Etapa: ${escapeWahaHtml(activeWahaConversation.pipeline_stage || 'new')}</span>`;
   try {
@@ -619,7 +622,7 @@ async function loadProspectos() {
   tbody.innerHTML = data.length ? data.map(r => `
     <tr class="clickable-row" onclick="viewRecord('prospectos', '${r['ID Prospectos'] || ''}')">
       <td><input type="checkbox" class="row-checkbox" value="${r['ID Prospectos'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-purple">${r['ID Prospectos'] || '—'}</span></td>
-      <td><strong>${r['Nombre del Contacto'] || '—'}</strong></td>
+       <td><strong class="contact-name-link" onclick="event.stopPropagation(); openLegacyContactPanel('${escapeDetailHtml(r['Teléfono'] || '')}','${escapeDetailHtml(r['Nombre del Contacto'] || '')}')">${r['Nombre del Contacto'] || '—'}</strong></td>
       <td>${r['Correo Electrónico'] || '—'}</td>
       <td>${r['Teléfono'] || '—'}</td>
       <td><span class="badge badge-gray">${escapeDetailHtml(r['Giro'] || '—')}</span></td>
@@ -1429,6 +1432,9 @@ async function copyAiDraft() {
 }
 
 async function openModal(title, body) {
+  if (!title && !body && currentSection === 'cotizaciones') {
+    return openQuoteWorkspace();
+  }
   if (!title && !body) {
     // If called without arguments, open the 'Nuevo Registro' form for current section
     title = 'Nuevo Registro';
@@ -2390,11 +2396,16 @@ async function submitActividad(e) {
 window.cotizacionesData = [];
 async function loadCotizaciones() {
   if (!window.prospectosData) window.prospectosData = await fetch(`${API}/api/prospectos`).then(r => r.json()).catch(() => []);
-  window.cotizacionesData = await fetch(`${API}/api/cotizaciones`).then(r => r.json()).catch(() => []);
+  const legacyQuotes = await fetch(`${API}/api/cotizaciones`).then(r => r.json()).catch(() => []);
+  let v2Quotes = [];
+  if (localStorage.getItem(V2_TOKEN_KEY)) {
+    try { v2Quotes = (await v2Fetch('/api/v2/quotes')).data.map(quote => ({ __v2: true, id: quote.id, 'ID Cotización': quote.quote_number, Cliente: quote.contact_name || 'Sin contacto', Fecha: quote.updated_at?.slice(0, 10) || '—', Vencimiento: quote.valid_until || '—', Email: '', Subtotal: quote.subtotal, Total: quote.total, Estado: quote.status })); } catch (_) {}
+  }
+  window.cotizacionesData = [...v2Quotes, ...legacyQuotes];
   const data = filterByDate(window.cotizacionesData);
   const tbody = document.querySelector('#tableCotizaciones tbody');
   tbody.innerHTML = data.length ? data.map(r => `
-    <tr class="clickable-row" onclick="viewRecord('cotizaciones', '${r['ID Cotización'] || ''}')">
+    <tr class="clickable-row" onclick="${r.__v2 ? `openSavedQuote('${r.id}')` : `viewRecord('cotizaciones', '${r['ID Cotización'] || ''}')`}">
       <td><input type="checkbox" class="row-checkbox" value="${r['ID Cotización'] || ''}" onclick="event.stopPropagation(); toggleSelection(this.value, this.checked)"><span class="badge badge-blue">${r['ID Cotización'] || '—'}</span></td>
       <td><strong>${r['Cliente'] || '—'}</strong></td>
       <td>${r['Fecha'] || '—'}</td>
@@ -2404,6 +2415,18 @@ async function loadCotizaciones() {
       <td><strong>${r['Total'] ? '$' + parseFloat(r['Total']).toLocaleString() : '—'}</strong></td>
       <td><a href="#" onclick="event.stopPropagation(); downloadCotizacionPDF('${r['ID Cotización'] || ''}')"><i class="ph ph-file-pdf" style="color:#ef4444; font-size:18px;"></i></a></td>
     </tr>`).join('') : emptyState();
+}
+
+async function openSavedQuote(id) {
+  try {
+    const result = await v2Fetch(`/api/v2/quotes/${encodeURIComponent(id)}`);
+    const quote = result.data;
+    quoteDirty = false;
+    quoteDraft = { ...quote, contact_id: quote.contact_id, contact: quote.contact_id ? quoteContacts.find(item => item.id === quote.contact_id) || { id: quote.contact_id, name: quote.contact_name, phone_e164: quote.phone_e164, email: quote.contact_email } : null, items: quote.items || [], payment_plan: quote.payment_plan || { type: 'single', concepts: [] }, fiscal_data: quote.fiscal_data || { requires_invoice: false }, payment_method: quote.payment_method || { type: 'transfer', details: {} } };
+    document.getElementById('cotizacionesListView').classList.add('hidden');
+    document.getElementById('quoteWorkspace').classList.remove('hidden');
+    renderQuoteWorkspace();
+  } catch (error) { showToast(error.message, true); }
 }
 
 function downloadCotizacionPDF(id) {
@@ -2556,6 +2579,163 @@ async function submitCotizacion(event) {
     btn.disabled = false;
   }
 }
+
+// ── COTIZADOR V2 ────────────────────────────────────────────────
+let quoteDraft = null;
+let quoteContacts = [];
+let quoteProducts = [];
+let quoteDirty = false;
+
+function quoteRound(value) { return Math.round((Number(value) + Number.EPSILON) * 100) / 100; }
+function quoteTotals() {
+  const subtotal = quoteRound((quoteDraft.items || []).reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0));
+  const discountValue = Number(quoteDraft.discount_value || 0);
+  const discountAmount = quoteRound(quoteDraft.discount_type === 'percentage' ? subtotal * discountValue / 100 : Math.min(discountValue, subtotal));
+  const base = quoteRound(subtotal - discountAmount);
+  const taxAmount = quoteRound(base * Number(quoteDraft.tax_rate || 0) / 100);
+  return { subtotal, discountAmount, base, taxAmount, total: quoteRound(base + taxAmount) };
+}
+function quoteCurrency(value) { return new Intl.NumberFormat('es-MX', { style: 'currency', currency: quoteDraft?.currency || 'MXN' }).format(Number(value || 0)); }
+function quoteStatusLabel(status) { return ({ draft: 'Borrador', unsaved: 'Sin guardar', saved: 'Guardada', sent: 'Enviada', viewed: 'Vista', accepted: 'Aceptada', rejected: 'Rechazada', expired: 'Vencida', cancelled: 'Cancelada' }[status] || 'Borrador'); }
+function quotePublicUrl() { return quoteDraft?.id ? `${window.location.origin}/quote/${encodeURIComponent(quoteDraft.id)}` : '#'; }
+
+async function openQuoteWorkspace(contactId = null) {
+  try {
+    if (!localStorage.getItem(V2_TOKEN_KEY)) await loginV2();
+    const contactsResponse = await v2Fetch('/api/v2/contacts?limit=100');
+    quoteContacts = contactsResponse.data || [];
+    const productsResponse = await v2Fetch('/api/v2/catalog/products');
+    quoteProducts = productsResponse.data || [];
+    quoteDirty = false;
+    quoteDraft = { id: null, status: 'unsaved', contact_id: contactId, contact: quoteContacts.find(contact => contact.id === contactId) || null, currency: 'MXN', valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), items: [], discount_type: 'fixed', discount_value: 0, tax_rate: 16, payment_plan: { type: 'single', concepts: [] }, fiscal_data: { requires_invoice: false }, payment_method: { type: 'transfer', details: {} }, send_channel: 'link', message: '' };
+    document.getElementById('cotizacionesListView').classList.add('hidden');
+    document.getElementById('quoteWorkspace').classList.remove('hidden');
+    renderQuoteWorkspace();
+  } catch (error) { showToast(error.message || 'Inicia sesión para usar el cotizador', true); }
+}
+
+function closeQuoteWorkspace() {
+  if (quoteDirty && !confirm('Hay cambios sin guardar. ¿Deseas salir de la cotización?')) return;
+  document.getElementById('quoteWorkspace')?.classList.add('hidden');
+  document.getElementById('cotizacionesListView')?.classList.remove('hidden');
+  quoteDraft = null;
+  loadCotizaciones();
+}
+
+function renderQuoteWorkspace() {
+  const root = document.getElementById('quoteWorkspace');
+  if (!root || !quoteDraft) return;
+  root.innerHTML = `<div class="quote-workspace-header"><button class="icon-button" onclick="closeQuoteWorkspace()"><i class="ph ph-arrow-left"></i></button><div><span class="eyebrow">COTIZADOR</span><h2>Nueva cotización</h2><p>Folio: <strong>${quoteDraft.quote_number || 'Se genera al guardar'}</strong></p></div><span class="quote-status-badge quote-status-${quoteDraft.status}">${quoteStatusLabel(quoteDraft.status)}</span><button class="icon-button"><i class="ph ph-dots-three-vertical"></i></button></div><div class="quote-workspace-grid"><div class="quote-builder" id="quoteBuilder"></div><div class="quote-preview-column"><div class="quote-preview-label"><span>PREVISUALIZACIÓN</span><small>Vista que recibirá el prospecto</small></div><div id="quotePreview"></div></div></div><div class="quote-bottom-bar"><div><small>Total de la cotización</small><strong>${quoteCurrency(quoteTotals().total)}</strong></div><div class="quote-bottom-actions"><button class="btn btn-outline" onclick="saveQuoteDraft()">Guardar borrador</button>${quoteDraft.status === 'sent' || quoteDraft.status === 'viewed' ? '<button class="btn btn-primary" onclick="duplicateQuoteDraft()"><i class="ph ph-copy"></i> Nueva versión</button>' : '<button class="btn btn-primary" onclick="sendQuoteDraft()"><i class="ph ph-paper-plane-tilt"></i> Enviar cotización</button>'}</div></div>`;
+  renderQuoteBuilder();
+  renderQuotePreview();
+}
+
+function quoteContactOptions() { return quoteContacts.map(contact => `<option value="${contact.id}" ${quoteDraft.contact_id === contact.id ? 'selected' : ''}>${escapeDetailHtml(contact.name)} · ${escapeDetailHtml(contact.phone_e164 || contact.email || '')}</option>`).join(''); }
+function renderQuoteBuilder() {
+  const builder = document.getElementById('quoteBuilder');
+  if (!builder) return;
+  const locked = ['sent', 'viewed', 'accepted', 'rejected', 'expired', 'cancelled'].includes(quoteDraft.status);
+  builder.innerHTML = `<details class="quote-accordion" open><summary><span><i class="ph ph-user-circle"></i> Contacto</span><small>${escapeDetailHtml(quoteDraft.contact?.name || 'Selecciona un prospecto')}</small></summary><div class="quote-accordion-body"><div class="quote-contact-row"><select class="modal-select" onchange="selectQuoteContact(this.value)" ${locked ? 'disabled' : ''}><option value="">Buscar o seleccionar contacto...</option>${quoteContactOptions()}</select><button class="btn btn-outline" onclick="openQuoteContactForm()" ${locked ? 'disabled' : ''}><i class="ph ph-user-plus"></i> Crear</button></div>${quoteDraft.contact ? `<div class="selected-contact-card"><button onclick="openContactPanel('${quoteDraft.contact.id}')"><strong>${escapeDetailHtml(quoteDraft.contact.name)}</strong><small>${escapeDetailHtml(quoteDraft.contact.phone_e164 || '')} · ${escapeDetailHtml(quoteDraft.contact.email || 'Sin correo')}</small></button><button class="icon-button" onclick="selectQuoteContact('')"><i class="ph ph-x"></i></button></div>` : ''}</div></details><details class="quote-accordion" open><summary><span><i class="ph ph-package"></i> Productos</span><small>${quoteDraft.items.length} seleccionados</small></summary><div class="quote-accordion-body"><div class="quote-product-add"><select class="modal-select" id="quoteProductSelect"><option value="">Selecciona del catálogo...</option>${quoteProducts.map(product => `<option value="${product.id}">${escapeDetailHtml(product.name)} · ${quoteCurrency(product.price)}</option>`).join('')}</select><button class="btn btn-outline" onclick="addQuoteCatalogProduct()"><i class="ph ph-plus"></i> Agregar</button></div><div class="quote-product-actions"><button class="btn btn-outline quote-manual-product" onclick="addQuoteItem()"><i class="ph ph-pencil-simple"></i> Producto manual</button><button class="btn btn-outline" onclick="openQuoteProductForm()"><i class="ph ph-cube"></i> Crear producto</button><button class="btn btn-outline" onclick="openQuoteImportProducts()"><i class="ph ph-upload-simple"></i> Importar</button></div><div class="quote-items-editor">${quoteDraft.items.length ? quoteDraft.items.map((item, index) => `<div class="quote-item-row" data-index="${index}"><div><input data-item-field="name" value="${escapeDetailHtml(item.name)}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}><small>${escapeDetailHtml(item.description || 'Producto o servicio')}</small></div><input data-item-field="quantity" type="number" min="1" value="${item.quantity}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}><input data-item-field="unit_price" type="number" min="0" step="0.01" value="${item.unit_price}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}><strong>${quoteCurrency(Number(item.quantity) * Number(item.unit_price))}</strong><button class="icon-button" onclick="removeQuoteItem(${index})" ${locked ? 'disabled' : ''}><i class="ph ph-trash"></i></button></div>`).join('') : '<div class="quote-empty-state">Agrega al menos un producto o servicio.</div>'}</div></div></details><details class="quote-accordion"><summary><span><i class="ph ph-percent"></i> Precios y descuentos</span><small>${quoteCurrency(quoteTotals().total)}</small></summary><div class="quote-accordion-body quote-form-grid"><label>Moneda<select name="quote_currency" onchange="syncQuoteDraft()" ${locked ? 'disabled' : ''}><option ${quoteDraft.currency === 'MXN' ? 'selected' : ''}>MXN</option><option ${quoteDraft.currency === 'USD' ? 'selected' : ''}>USD</option></select></label><label>Tipo de descuento<select name="quote_discount_type" onchange="syncQuoteDraft()" ${locked ? 'disabled' : ''}><option value="fixed" ${quoteDraft.discount_type === 'fixed' ? 'selected' : ''}>Monto fijo</option><option value="percentage" ${quoteDraft.discount_type === 'percentage' ? 'selected' : ''}>Porcentaje</option></select></label><label>Descuento<input name="quote_discount_value" type="number" min="0" step="0.01" value="${quoteDraft.discount_value}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}></label><label>Impuestos %<input name="quote_tax_rate" type="number" min="0" step="0.01" value="${quoteDraft.tax_rate}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}></label><div class="quote-calculation-summary"><span>Subtotal <strong>${quoteCurrency(quoteTotals().subtotal)}</strong></span><span>Descuento <strong>-${quoteCurrency(quoteTotals().discountAmount)}</strong></span><span>Impuestos <strong>${quoteCurrency(quoteTotals().taxAmount)}</strong></span><b>Total <strong>${quoteCurrency(quoteTotals().total)}</strong></b></div></div></details><details class="quote-accordion" open><summary><span><i class="ph ph-calendar-check"></i> Plan de pago</span><small class="quote-plan-status">${quotePlanSummary()}</small></summary><div class="quote-accordion-body"><select name="quote_plan_type" onchange="setQuotePlanType(this.value)" ${locked ? 'disabled' : ''}><option value="single" ${quoteDraft.payment_plan.type === 'single' ? 'selected' : ''}>Pago único</option><option value="down_payment" ${quoteDraft.payment_plan.type === 'down_payment' ? 'selected' : ''}>Anticipo más saldo</option><option value="financing" ${quoteDraft.payment_plan.type === 'financing' ? 'selected' : ''}>Anticipo más financiamiento</option><option value="custom" ${quoteDraft.payment_plan.type === 'custom' ? 'selected' : ''}>Plan personalizado</option></select><div class="quote-plan-list">${(quoteDraft.payment_plan.concepts || []).map((concept, index) => `<div class="quote-plan-row"><input value="${escapeDetailHtml(concept.name)}" data-plan-field="name" data-index="${index}" oninput="syncQuoteDraft()" placeholder="Concepto" ${locked ? 'disabled' : ''}><input type="number" min="0" step="0.01" value="${concept.amount || 0}" data-plan-field="amount" data-index="${index}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}><input type="date" value="${concept.due_date || ''}" data-plan-field="due_date" data-index="${index}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}><button class="icon-button" onclick="removeQuotePlanConcept(${index})" ${locked ? 'disabled' : ''}><i class="ph ph-trash"></i></button></div>`).join('')}</div><button class="btn btn-outline" onclick="addQuotePlanConcept()" ${locked ? 'disabled' : ''}><i class="ph ph-plus"></i> Agregar concepto</button><div class="quote-plan-difference ${Math.abs(quotePlanDifference()) <= .01 ? 'valid' : 'invalid'}">${quotePlanSummary()}</div></div></details><details class="quote-accordion"><summary><span><i class="ph ph-receipt"></i> Datos fiscales</span><small>${quoteDraft.fiscal_data.requires_invoice ? 'Factura requerida' : 'No requiere factura'}</small></summary><div class="quote-accordion-body"><label class="quote-toggle"><input type="checkbox" name="quote_requires_invoice" ${quoteDraft.fiscal_data.requires_invoice ? 'checked' : ''} onchange="syncQuoteDraft()" ${locked ? 'disabled' : ''}> ¿Requiere factura?</label>${quoteDraft.fiscal_data.requires_invoice ? `<div class="quote-form-grid"><label>RFC<input name="quote_rfc" value="${escapeDetailHtml(quoteDraft.fiscal_data.rfc || '')}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}></label><label>Razón social<input name="quote_legal_name" value="${escapeDetailHtml(quoteDraft.fiscal_data.legal_name || '')}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}></label><label>Dirección fiscal<input name="quote_tax_address" value="${escapeDetailHtml(quoteDraft.fiscal_data.tax_address || '')}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}></label><label>Código postal<input name="quote_postal_code" value="${escapeDetailHtml(quoteDraft.fiscal_data.postal_code || '')}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}></label><label>Régimen fiscal<input name="quote_tax_regime" value="${escapeDetailHtml(quoteDraft.fiscal_data.tax_regime || '')}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}></label><label>Uso fiscal<input name="quote_cfdi_use" value="${escapeDetailHtml(quoteDraft.fiscal_data.cfdi_use || '')}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}></label></div>` : ''}</div></details><details class="quote-accordion" open><summary><span><i class="ph ph-credit-card"></i> Envío y forma de cobro</span><small>${escapeDetailHtml(quoteDraft.payment_method.type || 'Sin configurar')}</small></summary><div class="quote-accordion-body quote-form-grid"><label>Forma de cobro<select name="quote_payment_type" onchange="syncQuoteDraft()" ${locked ? 'disabled' : ''}><option value="transfer" ${quoteDraft.payment_method.type === 'transfer' ? 'selected' : ''}>Transferencia bancaria</option><option value="payment_link" ${quoteDraft.payment_method.type === 'payment_link' ? 'selected' : ''}>Link de pago</option><option value="in_person" ${quoteDraft.payment_method.type === 'in_person' ? 'selected' : ''}>Pago presencial</option><option value="other" ${quoteDraft.payment_method.type === 'other' ? 'selected' : ''}>Otro método</option></select></label><label>Canal de envío<select name="quote_send_channel" onchange="syncQuoteDraft()" ${locked ? 'disabled' : ''}><option value="link" ${quoteDraft.send_channel === 'link' ? 'selected' : ''}>Enlace para copiar</option><option value="whatsapp" ${quoteDraft.send_channel === 'whatsapp' ? 'selected' : ''}>WhatsApp</option><option value="email" ${quoteDraft.send_channel === 'email' ? 'selected' : ''}>Correo</option><option value="download" ${quoteDraft.send_channel === 'download' ? 'selected' : ''}>Descarga</option></select></label><label class="full-width">Mensaje para el prospecto<textarea name="quote_message" rows="3" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}>${escapeDetailHtml(quoteDraft.message || '')}</textarea></label><label class="full-width">Vigencia<input name="quote_valid_until" type="date" value="${quoteDraft.valid_until || ''}" oninput="syncQuoteDraft()" ${locked ? 'disabled' : ''}></label></div></details>`;
+  if (quoteDraft.items.length === 0 && !quoteDraft._initialItemAdded) { quoteDraft._initialItemAdded = true; addQuoteItem(); }
+}
+
+function renderQuotePreview() {
+  const preview = document.getElementById('quotePreview');
+  if (!preview || !quoteDraft) return;
+  const totals = quoteTotals();
+  const firstPayment = quoteDraft.payment_plan?.concepts?.[0]?.amount || totals.total;
+  preview.innerHTML = `<article class="quote-preview-card"><div class="quote-preview-top"><span class="quote-preview-logo">L</span><span class="soft-badge purple">${quoteStatusLabel(quoteDraft.status)}</span></div><p class="quote-preview-greeting">Hola <strong>${escapeDetailHtml(quoteDraft.contact?.name || 'prospecto')}</strong>,</p><p class="quote-preview-message">${escapeDetailHtml(quoteDraft.message || 'Tenemos una propuesta preparada para ti.')}</p><div class="quote-preview-folio"><span>Folio</span><strong>${quoteDraft.quote_number || 'Se generará al guardar'}</strong></div><div class="quote-preview-products">${quoteDraft.items.length ? quoteDraft.items.map(item => `<div><span>${escapeDetailHtml(item.name)} × ${item.quantity}</span><strong>${quoteCurrency(Number(item.quantity) * Number(item.unit_price))}</strong></div>`).join('') : '<div class="quote-preview-empty">Tus productos aparecerán aquí.</div>'}</div><div class="quote-preview-total"><span>Total</span><strong>${quoteCurrency(totals.total)}</strong></div><div class="quote-preview-plan"><span>Primer pago</span><strong>${quoteCurrency(firstPayment)}</strong><small>${quoteDraft.payment_plan?.concepts?.length || 0} concepto(s) de pago · Vigencia ${quoteDraft.valid_until || 'pendiente'}</small></div><a class="btn btn-primary btn-block ${quoteDraft.id ? '' : 'disabled-link'}" href="${quotePublicUrl()}" target="_blank" rel="noreferrer">Ver cotización <i class="ph ph-arrow-up-right"></i></a>${quoteDraft.send_channel === 'whatsapp' ? '<button class="btn btn-outline btn-block" disabled>Continuar por WhatsApp</button>' : ''}</article>`;
+  const bottom = document.querySelector('.quote-bottom-bar strong');
+  if (bottom) bottom.textContent = quoteCurrency(totals.total);
+}
+
+function syncQuoteDraft() {
+  if (!quoteDraft) return;
+  const root = document.getElementById('quoteBuilder');
+  const value = name => root.querySelector(`[name="${name}"]`)?.value;
+  quoteDraft.currency = value('quote_currency') || quoteDraft.currency;
+  quoteDraft.discount_type = value('quote_discount_type') || quoteDraft.discount_type;
+  quoteDraft.discount_value = Number(value('quote_discount_value') || 0);
+  quoteDraft.tax_rate = Number(value('quote_tax_rate') || 0);
+  quoteDraft.valid_until = value('quote_valid_until') || '';
+  quoteDraft.message = value('quote_message') || '';
+  quoteDraft.send_channel = value('quote_send_channel') || 'link';
+  quoteDraft.payment_method = { type: value('quote_payment_type') || 'transfer', details: quoteDraft.payment_method?.details || {} };
+  quoteDraft.fiscal_data = { ...quoteDraft.fiscal_data, requires_invoice: Boolean(root.querySelector('[name="quote_requires_invoice"]')?.checked) };
+  ['rfc', 'legal_name', 'tax_address', 'postal_code', 'tax_regime', 'cfdi_use'].forEach(key => { const field = root.querySelector(`[name="quote_${key}"]`); if (field) quoteDraft.fiscal_data[key] = field.value; });
+  root.querySelectorAll('.quote-item-row').forEach((row, index) => { quoteDraft.items[index].name = row.querySelector('[data-item-field="name"]').value; quoteDraft.items[index].quantity = Number(row.querySelector('[data-item-field="quantity"]').value || 0); quoteDraft.items[index].unit_price = Number(row.querySelector('[data-item-field="unit_price"]').value || 0); });
+  root.querySelectorAll('.quote-plan-row').forEach(row => { const index = Number(row.querySelector('[data-plan-field="name"]').dataset.index); quoteDraft.payment_plan.concepts[index] = { ...quoteDraft.payment_plan.concepts[index], name: row.querySelector('[data-plan-field="name"]').value, amount: Number(row.querySelector('[data-plan-field="amount"]').value || 0), due_date: row.querySelector('[data-plan-field="due_date"]').value || null }; });
+  if (quoteDraft.payment_plan.type === 'single') quoteDraft.payment_plan.concepts = [{ name: 'Pago único', amount: quoteTotals().total, due_date: quoteDraft.valid_until }];
+  quoteDirty = true;
+  quoteDraft.status = 'unsaved';
+  renderQuotePreview();
+}
+
+function selectQuoteContact(id) { quoteDirty = true; quoteDraft.contact_id = id || null; quoteDraft.contact = quoteContacts.find(contact => contact.id === id) || null; renderQuoteBuilder(); renderQuotePreview(); }
+function addQuoteItem() { quoteDraft.items.push({ name: 'Nuevo producto', description: '', quantity: 1, unit_price: 0, currency: quoteDraft.currency }); if (quoteDraft.payment_plan.type === 'single') quoteDraft.payment_plan.concepts = [{ name: 'Pago único', amount: quoteTotals().total, due_date: quoteDraft.valid_until }]; renderQuoteBuilder(); renderQuotePreview(); }
+function addQuoteCatalogProduct() { const product = quoteProducts.find(item => item.id === document.getElementById('quoteProductSelect')?.value); if (!product) return; quoteDraft.items.push({ product_id: product.id, name: product.name, description: product.description || '', quantity: 1, unit_price: Number(product.price), currency: product.currency || quoteDraft.currency }); renderQuoteBuilder(); renderQuotePreview(); }
+function openQuoteProductForm() { openModal('Crear producto o servicio', `<form onsubmit="createQuoteProduct(event)"><div class="form-grid"><div class="form-group full"><label>Nombre *</label><input name="name" required></div><div class="form-group full"><label>Descripción</label><textarea name="description" rows="3"></textarea></div><div class="form-group"><label>Precio *</label><input name="price" type="number" min="0" step="0.01" required></div><div class="form-group"><label>Moneda</label><select name="currency"><option>MXN</option><option>USD</option></select></div></div><button class="btn btn-primary btn-block" type="submit">Guardar producto</button></form>`); }
+async function createQuoteProduct(event) { event.preventDefault(); const body = Object.fromEntries(new FormData(event.target)); try { const result = await v2Fetch('/api/v2/catalog/products', { method: 'POST', body: JSON.stringify(body) }); quoteProducts.unshift(result.data); closeModal(); renderQuoteBuilder(); showToast('Producto agregado al catálogo'); } catch (error) { showToast(error.message, true); } }
+function openQuoteImportProducts() { openModal('Importar productos', `<div class="quote-import-help">Carga un CSV con columnas: <strong>name,description,price,currency</strong>.</div><input type="file" id="quoteImportFile" accept=".csv,text/csv"><div class="integration-form-actions"><button class="btn btn-outline" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="importQuoteProducts()">Importar</button></div>`); }
+async function importQuoteProducts() { const file = document.getElementById('quoteImportFile')?.files?.[0]; if (!file) return showToast('Selecciona un archivo CSV', true); const text = await file.text(); const rows = text.split(/\r?\n/).filter(Boolean).slice(1); try { for (const row of rows) { const [name, description = '', price = '0', currency = 'MXN'] = row.split(',').map(value => value.trim().replace(/^"|"$/g, '')); if (!name) continue; const result = await v2Fetch('/api/v2/catalog/products', { method: 'POST', body: JSON.stringify({ name, description, price, currency }) }); quoteProducts.unshift(result.data); } closeModal(); renderQuoteBuilder(); showToast('Productos importados'); } catch (error) { showToast(error.message, true); } }
+function removeQuoteItem(index) { quoteDraft.items.splice(index, 1); renderQuoteBuilder(); renderQuotePreview(); }
+function setQuotePlanType(type) { quoteDraft.payment_plan = { type, concepts: type === 'single' ? [{ name: 'Pago único', amount: quoteTotals().total, due_date: quoteDraft.valid_until }] : [] }; renderQuoteBuilder(); renderQuotePreview(); }
+function addQuotePlanConcept() { quoteDraft.payment_plan.concepts.push({ name: 'Nuevo concepto', amount: 0, due_date: null }); renderQuoteBuilder(); }
+function removeQuotePlanConcept(index) { quoteDraft.payment_plan.concepts.splice(index, 1); renderQuoteBuilder(); }
+function quotePlanDifference() { return quoteRound(quoteTotals().total - (quoteDraft.payment_plan.concepts || []).reduce((sum, concept) => sum + Number(concept.amount || 0), 0)); }
+function quotePlanSummary() { const difference = quotePlanDifference(); return Math.abs(difference) <= .01 ? 'Plan completo' : `Falta ${quoteCurrency(Math.abs(difference))}`; }
+
+function quoteRequestBody() { syncQuoteDraft(); const totals = quoteTotals(); return { ...quoteDraft, ...totals, items: quoteDraft.items.map(item => ({ ...item, unit_price: Number(item.unit_price), quantity: Number(item.quantity) })), payment_plan: { ...quoteDraft.payment_plan, calculated_total: quoteDraft.payment_plan.concepts.reduce((sum, concept) => sum + Number(concept.amount || 0), 0), difference: quotePlanDifference() } }; }
+async function saveQuoteDraft() { try { const body = quoteRequestBody(); const result = await v2Fetch(quoteDraft.id ? `/api/v2/quotes/${quoteDraft.id}` : '/api/v2/quotes', { method: quoteDraft.id ? 'PUT' : 'POST', body: JSON.stringify(body) }); quoteDraft = { ...quoteDraft, ...result.data, items: result.data.items || quoteDraft.items, contact: quoteDraft.contact }; quoteDirty = false; showToast('<i class="ph-fill ph-check-circle" style="color:#10b981"></i> Borrador guardado'); renderQuoteWorkspace(); } catch (error) { showToast(error.message, true); } }
+function quoteClientValidation() { const errors = []; const totals = quoteTotals(); if (!quoteDraft.contact_id) errors.push(['Contacto', 'Selecciona un prospecto']); if (!quoteDraft.items.length) errors.push(['Productos', 'Agrega al menos un producto']); if (quoteDraft.items.some(item => Number(item.quantity) < 1 || Number(item.unit_price) < 0)) errors.push(['Productos', 'Revisa cantidades y precios']); if (totals.total <= 0) errors.push(['Precios', 'El total debe ser mayor que cero']); if (!quoteDraft.valid_until) errors.push(['Envío', 'Configura la vigencia']); if (quoteDraft.fiscal_data.requires_invoice && ['rfc', 'legal_name', 'tax_address', 'postal_code', 'tax_regime', 'cfdi_use'].some(key => !String(quoteDraft.fiscal_data[key] || '').trim())) errors.push(['Datos fiscales', 'Completa todos los datos fiscales']); if (!quoteDraft.payment_method.type) errors.push(['Envío', 'Configura la forma de cobro']); if (Math.abs(quotePlanDifference()) > .01) errors.push(['Plan de pago', `El plan tiene una diferencia de ${quoteCurrency(Math.abs(quotePlanDifference()))}`]); return errors; }
+async function sendQuoteDraft() { const errors = quoteClientValidation(); if (errors.length) { showToast(errors[0][1], true); document.querySelectorAll('.quote-accordion').forEach(detail => { if (detail.textContent.includes(errors[0][0])) detail.open = true; }); return; } try { if (!quoteDraft.id) await saveQuoteDraft(); const result = await v2Fetch(`/api/v2/quotes/${quoteDraft.id}/send`, { method: 'POST', body: JSON.stringify(quoteRequestBody()) }); quoteDraft = { ...quoteDraft, ...result.data, status: result.data.status, items: result.data.items || quoteDraft.items }; quoteDirty = false; renderQuoteWorkspace(); showToast('<i class="ph-fill ph-check-circle" style="color:#10b981"></i> Cotización enviada y congelada'); } catch (error) { showToast(error.message, true); } }
+async function duplicateQuoteDraft() { try { const result = await v2Fetch(`/api/v2/quotes/${quoteDraft.id}/duplicate`, { method: 'POST', body: '{}' }); quoteDraft = { ...result.data, status: 'draft', items: result.data.items || quoteDraft.items, contact: quoteDraft.contact }; renderQuoteWorkspace(); showToast('Nueva versión creada'); } catch (error) { showToast(error.message, true); } }
+
+function openQuoteContactForm() { openModal('Crear nuevo contacto', `<form onsubmit="createQuoteContact(event)"><div class="form-grid"><div class="form-group full"><label>Nombre completo *</label><input name="name" required></div><div class="form-group"><label>Prefijo *</label><input name="prefix" value="+52" required></div><div class="form-group"><label>Número *</label><input name="number" required></div><div class="form-group full"><label>Correo</label><input name="email" type="email"></div></div><button class="btn btn-primary btn-block" type="submit">Crear contacto</button></form>`); }
+async function createQuoteContact(event) { event.preventDefault(); const form = event.target; const body = Object.fromEntries(new FormData(form)); body.phone_e164 = `${body.prefix}${body.number}`.replace(/(?!^)[^\d]/g, ''); delete body.prefix; delete body.number; try { const result = await v2Fetch('/api/v2/contacts', { method: 'POST', body: JSON.stringify(body) }); quoteContacts.unshift(result.data); closeModal(); selectQuoteContact(result.data.id); showToast('Contacto creado'); } catch (error) { if (error.status === 409 && error.data?.contact && confirm('Ya existe un contacto con esos datos. ¿Quieres seleccionarlo?')) { quoteContacts.unshift(error.data.contact); closeModal(); selectQuoteContact(error.data.contact.id); return; } showToast(error.message, true); } }
+
+let contactPanelData = null;
+let contactPanelDirty = false;
+async function openContactPanel(contactId) {
+  try {
+    const result = await v2Fetch(`/api/v2/contacts/${encodeURIComponent(contactId)}/profile`);
+    contactPanelData = result.data;
+    contactPanelDirty = false;
+    const panel = document.getElementById('contactPanel');
+    panel.classList.remove('hidden');
+    document.getElementById('contactPanelOverlay').classList.remove('hidden');
+    document.body.classList.add('contact-panel-open');
+    renderContactPanel();
+    document.getElementById('contactPanel').querySelectorAll('input,select').forEach(input => { input.addEventListener('input', () => { contactPanelDirty = true; }); input.addEventListener('change', () => { contactPanelDirty = true; }); });
+    if (!window.contactPanelEscapeBound) { document.addEventListener('keydown', event => { if (event.key === 'Escape') closeContactPanel(); }); window.contactPanelEscapeBound = true; }
+  } catch (error) { if (error.status === 401) loginV2(); else showToast(error.message, true); }
+}
+
+async function openLegacyContactPanel(phone, name) {
+  try {
+    if (!localStorage.getItem(V2_TOKEN_KEY)) await loginV2();
+    const result = await v2Fetch(`/api/v2/contacts?search=${encodeURIComponent(phone || name)}&limit=10`);
+    const contact = (result.data || [])[0];
+    if (!contact) return showToast('Este prospecto aún no está sincronizado en la base V2.', true);
+    openContactPanel(contact.id);
+  } catch (error) { showToast(error.message, true); }
+}
+
+function renderContactPanel() {
+  const panel = document.getElementById('contactPanel');
+  const contact = contactPanelData.contact;
+  const notes = contactPanelData.notes || [];
+  const history = contactPanelData.history || [];
+  panel.innerHTML = `<header class="contact-panel-header"><div><span class="eyebrow">CRM</span><h2>Detalles del contacto</h2><p>${escapeDetailHtml(contact.name)}</p></div><button class="icon-button" onclick="closeContactPanel()"><i class="ph ph-x"></i></button></header><div class="contact-panel-body"><div class="contact-profile-hero"><span class="contact-profile-avatar">${escapeDetailHtml((contact.name || '?').slice(0,1).toUpperCase())}</span><div><strong>${escapeDetailHtml(contact.name)}</strong><small>${escapeDetailHtml(contact.phone_e164 || '')} · ${escapeDetailHtml(contact.email || 'Sin correo')}</small></div><span class="soft-badge purple">${escapeDetailHtml(contact.attention_status || 'active')}</span></div><section class="contact-panel-section"><h3><i class="ph ph-sliders-horizontal"></i> Asignación</h3><div class="contact-panel-grid"><label>Etapa<select name="panel_pipeline_stage"><option ${contact.pipeline_stage === 'new' ? 'selected' : ''}>new</option><option ${contact.pipeline_stage === 'in_progress' ? 'selected' : ''}>in_progress</option><option ${contact.pipeline_stage === 'qualified' ? 'selected' : ''}>qualified</option><option ${contact.pipeline_stage === 'won' ? 'selected' : ''}>won</option><option ${contact.pipeline_stage === 'lost' ? 'selected' : ''}>lost</option></select></label><label>Prioridad<select name="panel_priority"><option ${contact.priority === 'high' ? 'selected' : ''}>high</option><option ${contact.priority === 'normal' ? 'selected' : ''}>normal</option><option ${contact.priority === 'low' ? 'selected' : ''}>low</option></select></label></div></section><section class="contact-panel-section"><h3><i class="ph ph-user"></i> Datos del prospecto</h3><div class="contact-panel-grid"><label>Nombre<input name="panel_name" value="${escapeDetailHtml(contact.name || '')}"></label><label>Empresa<input name="panel_company" value="${escapeDetailHtml(contact.company || '')}"></label><label>Teléfono<input name="panel_phone" value="${escapeDetailHtml(contact.phone_e164 || '')}"></label><label>Correo<input name="panel_email" type="email" value="${escapeDetailHtml(contact.email || '')}"></label><label>Origen<input name="panel_source" value="${escapeDetailHtml(contact.source || '')}"></label><label>Canal<input name="panel_channel" value="${escapeDetailHtml(contact.channel || '')}"></label></div></section><section class="contact-panel-section"><h3><i class="ph ph-note-pencil"></i> Notas internas</h3><div class="contact-note-list">${notes.length ? notes.map(note => `<article class="contact-note-card"><p>${escapeDetailHtml(note.body)}</p><small>${escapeDetailHtml(note.author_name || 'Equipo')} · ${new Date(note.created_at).toLocaleString()}</small></article>`).join('') : '<span class="contact-empty">Todavía no hay notas.</span>'}</div><button class="btn btn-outline" style="margin-top:12px" onclick="addContactPanelNote()"><i class="ph ph-plus"></i> Agregar nota</button></section><section class="contact-panel-section"><h3><i class="ph ph-activity"></i> Historial</h3><div class="contact-history">${history.length ? history.map(item => `<div class="contact-history-item"><strong>${escapeDetailHtml(item.event_type)}</strong><small>${new Date(item.created_at).toLocaleString()}</small></div>`).join('') : '<span class="contact-empty">Sin actividad registrada.</span>'}</div></section></div><footer class="contact-panel-actions"><button class="btn btn-outline" onclick="saveContactPanel()">Guardar cambios</button><button class="btn btn-dark" onclick="createQuoteFromContactPanel()">Crear cotización</button><button class="btn btn-primary" onclick="startConversationFromContactPanel()">Iniciar conversación</button></footer>`;
+}
+
+function closeContactPanel(event) { if (event && event.target?.id !== 'contactPanelOverlay') return; if (contactPanelDirty && !confirm('Hay cambios sin guardar en el contacto. ¿Deseas cerrar?')) return; document.getElementById('contactPanel')?.classList.add('hidden'); document.getElementById('contactPanelOverlay')?.classList.add('hidden'); document.body.classList.remove('contact-panel-open'); contactPanelData = null; contactPanelDirty = false; }
+async function saveContactPanel() { const panel = document.getElementById('contactPanel'); const payload = { name: panel.querySelector('[name="panel_name"]').value.trim(), company: panel.querySelector('[name="panel_company"]').value.trim(), phone_e164: panel.querySelector('[name="panel_phone"]').value.trim(), email: panel.querySelector('[name="panel_email"]').value.trim(), source: panel.querySelector('[name="panel_source"]').value.trim(), channel: panel.querySelector('[name="panel_channel"]').value.trim(), pipeline_stage: panel.querySelector('[name="panel_pipeline_stage"]').value, priority: panel.querySelector('[name="panel_priority"]').value }; try { const result = await v2Fetch(`/api/v2/contacts/${contactPanelData.contact.id}/profile`, { method: 'PATCH', body: JSON.stringify(payload) }); contactPanelData.contact = result.data; contactPanelDirty = false; renderContactPanel(); showToast('Cambios del contacto guardados'); } catch (error) { showToast(error.message, true); } }
+function addContactPanelNote() { openModal('Agregar nota interna', `<form onsubmit="saveContactPanelNote(event)"><div class="form-group"><label>Nota</label><textarea name="body" rows="6" required placeholder="Escribe una nota para tu equipo..."></textarea></div><div class="form-group" style="margin-top:12px"><label>Adjuntar archivo</label><input name="attachment" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"></div><div class="integration-form-actions"><button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary">Guardar nota</button></div></form>`); }
+async function saveContactPanelNote(event) { event.preventDefault(); const form = event.target; const body = form.body.value.trim(); const file = form.attachment.files[0]; if (file && file.size > 2 * 1024 * 1024) return showToast('El archivo no puede superar 2MB', true); const save = attachments => v2Fetch(`/api/v2/contacts/${contactPanelData.contact.id}/notes`, { method: 'POST', body: JSON.stringify({ body, attachments }) }); try { let attachments = []; if (file) attachments = [{ name: file.name, type: file.type, size: file.size, data: await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); }) }]; const result = await save(attachments); contactPanelData.notes.unshift(result.data); closeModal(); renderContactPanel(); showToast('Nota agregada'); } catch (error) { showToast(error.message, true); } }
+async function createQuoteFromContactPanel() { const id = contactPanelData.contact.id; closeContactPanel(); navigateTo('cotizaciones'); await openQuoteWorkspace(id); }
+function openAppointmentFromContactPanel() { const contact = contactPanelData.contact; closeContactPanel(); navigateTo('citas'); openModal('Agendar cita', formCita()); setTimeout(() => { const form = document.querySelector('#modalBody form'); if (form) { if (form.nombre) form.nombre.value = contact.name || ''; if (form.correo) form.correo.value = contact.email || ''; if (form.telefono) form.telefono.value = contact.phone_e164 || ''; } }, 0); }
+function startConversationFromContactPanel() { const phone = contactPanelData.contact.phone_e164; closeContactPanel(); navigateTo('chats'); const search = document.getElementById('wahaSearch'); if (search) { search.value = phone || ''; search.dispatchEvent(new Event('input')); } }
 
 // ── ARCHIVOS ──────────────────────────────────────────────────────
 window.archivosData = [];

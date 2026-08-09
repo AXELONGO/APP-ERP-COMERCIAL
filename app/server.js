@@ -21,6 +21,7 @@ const { registerV2CoreRoutes } = require('./routes/v2Core');
 const { registerV2SalesRoutes } = require('./routes/v2Sales');
 const { registerWahaRoutes } = require('./routes/waha');
 const { registerIntegrationRoutes } = require('./routes/integrations');
+const { registerQuoteRoutes } = require('./routes/quotes');
 const { seedLegacyPipelines } = require('./services/pipelineService');
 const { ensureProspectosGiroColumn } = require('./services/legacySchemaService');
 const { getAuthUrl, saveTokenFromCode } = require('./config/drive');
@@ -142,6 +143,7 @@ registerV2CoreRoutes(app);
 registerV2SalesRoutes(app);
 registerWahaRoutes(app);
 registerIntegrationRoutes(app);
+registerQuoteRoutes(app);
 
 // ── Google Drive OAuth ──────────────────────────────────────
 app.get('/api/auth/google', (req, res) => {

@@ -483,15 +483,18 @@
 
   <!-- ── COTIZACIONES ──────────────────────────────────────────── -->
   <section class="section hidden" id="section-cotizaciones">
-    <div class="table-toolbar">
+    <div id="cotizacionesListView">
+    <div class="table-toolbar" id="cotizacionesToolbar">
       <input type="text" class="search-input" placeholder="Buscar cotización..." oninput="filterTable('tableCotizaciones', this.value)">
     </div>
-    <div class="table-card">
+    <div class="table-card" id="cotizacionesListCard">
       <table id="tableCotizaciones">
         <thead><tr><th>ID</th><th>Cliente</th><th>Fecha</th><th>Vence</th><th>Email</th><th>Subtotal</th><th>Total</th><th>PDF</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
+    </div>
+    <div id="quoteWorkspace" class="quote-workspace hidden"></div>
   </section>
 
   <!-- ── ARCHIVOS ──────────────────────────────────────────── -->
@@ -767,6 +770,9 @@
     </form>
   </div>
 </div>
+
+<div id="contactPanelOverlay" class="contact-panel-overlay hidden" onclick="closeContactPanel(event)"></div>
+<aside id="contactPanel" class="contact-panel hidden" aria-label="Detalles del contacto"></aside>
 
 <!-- ── Estilos premium para selects y modales de webhook ─── -->
 <style>
