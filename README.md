@@ -131,7 +131,7 @@ Incluye Google ADK, `adk web`, tools comerciales, Gmail, Sheets, Drive, Calendar
 
 La base de la nueva arquitectura incluye rutas protegidas y PostgreSQL para empresas, usuarios, contactos, conversaciones, mensajes y auditoría.
 
-Configura `DATABASE_URL` y `ERP_AUTH_SECRET`, luego ejecuta:
+Configura `DATABASE_URL` y `ERP_AUTH_SECRET`. Al iniciar el servidor, el bootstrap V2 aplica el schema y deja disponible el administrador predeterminado `admin@gmail.com` con contraseña `1234` (puedes cambiarlo mediante `ADMIN_EMAIL` y `ADMIN_PASSWORD`). Para hacerlo manualmente:
 
 ```bash
 npm run db:migrate
@@ -164,7 +164,7 @@ El repositorio incluye una base inicial persistente bajo `/api/v2`:
 - Conversaciones y mensajes.
 - Eventos de auditoría.
 
-Configura `DATABASE_URL`, `ERP_AUTH_SECRET`, `ADMIN_EMAIL` y `ADMIN_PASSWORD`; después ejecuta:
+Configura `DATABASE_URL` y `ERP_AUTH_SECRET`. El servidor crea o actualiza automáticamente el workspace y administrador configurados (`admin@gmail.com` / `1234` por defecto). Para sobrescribirlos, define `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`, `WORKSPACE_NAME` y `WORKSPACE_SLUG`. El bootstrap automático puede desactivarse con `ERP_V2_AUTO_BOOTSTRAP=false`.
 
 ```bash
 npm run db:migrate

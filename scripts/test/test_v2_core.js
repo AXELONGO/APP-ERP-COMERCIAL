@@ -9,6 +9,9 @@ process.env.ERP_AUTH_SECRET = 'test-secret-with-at-least-32-characters';
 const passwordHash = hashPassword('test-password-long-enough');
 assert.equal(verifyPassword('test-password-long-enough', passwordHash), true);
 assert.equal(verifyPassword('wrong-password', passwordHash), false);
+const defaultPasswordHash = hashPassword('1234');
+assert.equal(verifyPassword('1234', defaultPasswordHash), true);
+assert.equal(verifyPassword('12345', defaultPasswordHash), false);
 
 const token = signToken({
   sub: 'user-1',

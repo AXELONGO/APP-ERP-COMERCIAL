@@ -2,7 +2,7 @@ const { getPool } = require('../../app/config/database');
 const { hashPassword } = require('../../app/auth/passwords');
 
 async function main() {
-  const { ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME = 'Administrador', WORKSPACE_NAME = 'Mi empresa', WORKSPACE_SLUG = 'mi-empresa' } = process.env;
+  const { ADMIN_EMAIL = 'admin@gmail.com', ADMIN_PASSWORD = '1234', ADMIN_NAME = 'Administrador', WORKSPACE_NAME = 'Mi empresa', WORKSPACE_SLUG = 'mi-empresa' } = process.env;
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD) throw new Error('ADMIN_EMAIL y ADMIN_PASSWORD son obligatorios');
 
   const pool = getPool();

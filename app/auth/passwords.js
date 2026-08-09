@@ -4,8 +4,8 @@ const KEY_LENGTH = 64;
 const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1 };
 
 function hashPassword(password) {
-  if (!password || password.length < 12) {
-    throw new Error('La contraseña debe tener al menos 12 caracteres');
+  if (!password || password.length < 4) {
+    throw new Error('La contraseña debe tener al menos 4 caracteres');
   }
 
   const salt = crypto.randomBytes(16).toString('hex');

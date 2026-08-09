@@ -47,6 +47,21 @@
 <!-- ── SIDEBAR OVERLAY (MOBILE) ────────────────────────────── -->
 <div id="sidebarOverlay" class="sidebar-overlay hidden"></div>
 
+<div id="crmLoginOverlay" class="crm-login-overlay hidden">
+  <div class="crm-login-card">
+    <div class="crm-login-brand"><span class="crm-login-mark">L</span><div><strong>LUMARK GROUP</strong><small>CRM Comercial</small></div></div>
+    <span class="eyebrow">ACCESO SEGURO</span>
+    <h1>Ingresa al CRM</h1>
+    <p class="crm-login-copy">Usa las credenciales del administrador para acceder a integraciones, cotizaciones y conversaciones.</p>
+    <form id="crmLoginForm" onsubmit="submitCrmLogin(event)">
+      <label>Correo electrónico<input id="crmLoginEmail" type="email" value="admin@gmail.com" autocomplete="username" required></label>
+      <label>Contraseña<input id="crmLoginPassword" type="password" value="1234" autocomplete="current-password" required></label>
+      <p id="crmLoginError" class="crm-login-error"></p>
+      <button class="btn btn-primary btn-block" type="submit"><i class="ph ph-sign-in"></i> Entrar al CRM</button>
+    </form>
+  </div>
+</div>
+
 <!-- ── SIDEBAR ─────────────────────────────────────────────── -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo" style="padding: 20px 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: padding 0.3s;" onclick="document.getElementById('sidebar').classList.toggle('mini')" title="Expandir/Contraer Menú">

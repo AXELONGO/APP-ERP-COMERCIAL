@@ -425,21 +425,27 @@ async function loadChats() {
   }
 }
 
-async function loginV2() {
-  const email = window.prompt('Correo del administrador del ERP:');
-  if (!email) return;
-  const password = window.prompt('Contraseña:');
-  if (!password) return;
+let crmLoginResolver = null;
+function initializeCrmAccess() { if (!localStorage.getItem(V2_TOKEN_KEY)) document.getElementById('crmLoginOverlay')?.classList.remove('hidden'); }
+function loginV2() { document.getElementById('crmLoginOverlay')?.classList.remove('hidden'); return new Promise(resolve => { crmLoginResolver = resolve; }); }
+async function submitCrmLogin(event) {
+  event.preventDefault();
+  const button = event.target.querySelector('button[type="submit"]');
+  const errorElement = document.getElementById('crmLoginError');
+  button.disabled = true;
+  errorElement.textContent = '';
   try {
-    const result = await fetch('/api/v2/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }).then(async response => {
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'No se pudo iniciar sesión');
-      return data;
-    });
-    localStorage.setItem(V2_TOKEN_KEY, result.token);
+    const response = await fetch('/api/v2/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: document.getElementById('crmLoginEmail').value.trim(), password: document.getElementById('crmLoginPassword').value }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'No se pudo iniciar sesión');
+    localStorage.setItem(V2_TOKEN_KEY, data.token);
+    document.getElementById('crmLoginOverlay').classList.add('hidden');
+    crmLoginResolver?.(true);
+    crmLoginResolver = null;
     showToast('<i class="ph-fill ph-check-circle" style="color:#10b981"></i> Sesión del CRM iniciada');
     loadChats();
-  } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
+  } catch (error) { errorElement.textContent = error.message; }
+  finally { button.disabled = false; }
 }
 
 function escapeWahaHtml(value) {
@@ -1877,6 +1883,7 @@ function showToast(msg, isError = false) {
 
 // ── INIT ──────────────────────────────────────────────────────────
 loadDashboard();
+initializeCrmAccess();
 
 // ── KANBAN DRAG & DROP LOGIC ──────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

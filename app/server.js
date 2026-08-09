@@ -22,6 +22,7 @@ const { registerV2SalesRoutes } = require('./routes/v2Sales');
 const { registerWahaRoutes } = require('./routes/waha');
 const { registerIntegrationRoutes } = require('./routes/integrations');
 const { registerQuoteRoutes } = require('./routes/quotes');
+const { ensureV2Bootstrap } = require('./services/v2Bootstrap');
 const { seedLegacyPipelines } = require('./services/pipelineService');
 const { ensureProspectosGiroColumn } = require('./services/legacySchemaService');
 const { getAuthUrl, saveTokenFromCode } = require('./config/drive');
@@ -173,6 +174,9 @@ app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
 async function runStartupMigrations() {
+  if (process.env.DATABASE_URL) {
+    try { await ensureV2Bootstrap(); } catch (error) { console.error('[ERP V2] Bootstrap omitido:', error.message); }
+  }
   const hasGoogleCredentials = Boolean(process.env.GOOGLE_CREDENTIALS || fs.existsSync(path.join(__dirname, '../../credentials.json')));
   if (process.env.PIPELINES_AUTO_MIGRATE !== 'false' && hasGoogleCredentials) {
     try {
