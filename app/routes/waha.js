@@ -5,6 +5,7 @@ const {
   getSession,
   getChats,
   getChatMessages,
+  getLidPhone,
   configureAndStartSession,
   stopSession,
   getQr,
@@ -40,17 +41,17 @@ async function workspaceWahaConfig(workspaceId) {
   return { ...getWahaConfig(), ...(saved.config || {}) };
 }
 
-async function ensureConversation(client, workspaceId, chatId, displayName) {
-  const phone = phoneFromChatId(chatId);
+async function ensureConversation(client, workspaceId, chatId, displayName, displayPhone = null) {
+  const phone = displayPhone || phoneFromChatId(chatId);
   if (!phone) return null;
   const contactResult = await client.query(
-    `INSERT INTO contacts (workspace_id, name, phone_e164, source)
-     VALUES ($1,$2,$3,'whatsapp')
-     ON CONFLICT (workspace_id, phone_e164) DO UPDATE SET
-       name = CASE WHEN contacts.name = contacts.phone_e164 THEN EXCLUDED.name ELSE contacts.name END,
+      `INSERT INTO contacts (workspace_id, name, phone_e164, source)
+      VALUES ($1,$2,$3,'whatsapp')
+      ON CONFLICT (workspace_id, phone_e164) DO UPDATE SET
+       name = CASE WHEN contacts.name IN (contacts.phone_e164, $4) THEN EXCLUDED.name ELSE contacts.name END,
        updated_at = now()
-     RETURNING id, name, phone_e164`,
-    [workspaceId, displayName || phone, phone]
+       RETURNING id, name, phone_e164`,
+    [workspaceId, displayName || phone, phone, chatId]
   );
   const contact = contactResult.rows[0];
   const conversationResult = await client.query(
@@ -73,23 +74,32 @@ async function persistWahaMessage(event) {
   const payload = event?.payload || {};
   const chatId = payload.fromMe && payload.to && payload.to !== 'me' ? payload.to : payload.from;
   const conversationId = chatId && event.workspaceId
-    ? await persistMessageForWorkspace(event.workspaceId, chatId, payload)
+    ? await persistMessageForWorkspace(event.workspaceId, chatId, payload, event.chatName, event.chatPhone)
     : null;
   return conversationId;
 }
 
-async function persistMessageForWorkspace(workspaceId, chatId, payload) {
+function messageTimestamp(payload) {
+  const value = Number(payload?.timestamp);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value > 100000000000 ? value / 1000 : value;
+}
+
+async function persistMessageForWorkspace(workspaceId, chatId, payload, chatName = null, chatPhone = null) {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
-    const name = payload._data?.notifyName || payload._data?.pushName || payload.pushName || phoneFromChatId(chatId);
-    const conversation = await ensureConversation(client, workspaceId, chatId, name);
+    const name = chatName || payload._data?.notifyName || payload._data?.pushName || payload.pushName || chatPhone || phoneFromChatId(chatId);
+    const conversation = await ensureConversation(client, workspaceId, chatId, name, chatPhone);
     if (!conversation) { await client.query('ROLLBACK'); return null; }
     const body = payload.body || (payload.hasMedia ? `[${payload.media?.mimetype || 'media'}]` : '[mensaje sin texto]');
     const inserted = await client.query(
-      `INSERT INTO messages (workspace_id, conversation_id, direction, channel, body, provider_message_id, delivery_status)
-       VALUES ($1,$2,$3,'whatsapp',$4,$5,$6) ON CONFLICT DO NOTHING RETURNING id`,
-      [workspaceId, conversation.id, payload.fromMe ? 'outbound' : 'inbound', body, payload.id || null, payload.fromMe ? 'sent' : 'received']
+      `INSERT INTO messages (workspace_id, conversation_id, direction, channel, body, provider_message_id, delivery_status, created_at)
+       VALUES ($1,$2,$3,'whatsapp',$4,$5,$6,COALESCE(to_timestamp($7), now()))
+       ON CONFLICT (workspace_id, provider_message_id) WHERE provider_message_id IS NOT NULL
+       DO UPDATE SET created_at = EXCLUDED.created_at, delivery_status = EXCLUDED.delivery_status
+       RETURNING id, (xmax = 0) AS inserted`,
+      [workspaceId, conversation.id, payload.fromMe ? 'outbound' : 'inbound', body, payload.id || null, payload.fromMe ? 'sent' : 'received', messageTimestamp(payload)]
     );
     await client.query(
       `UPDATE conversations SET last_activity_at = now(), updated_at = now(),
@@ -97,7 +107,7 @@ async function persistMessageForWorkspace(workspaceId, chatId, payload) {
        WHERE id = $1 AND workspace_id = $3`,
       [conversation.id, payload.fromMe ? 'outbound' : 'inbound', workspaceId]
     );
-    if (inserted.rows[0]) {
+    if (inserted.rows[0]?.inserted) {
       await client.query(
         `INSERT INTO audit_events (workspace_id,event_type,entity_type,entity_id,actor_type,after_data)
          VALUES ($1,'message.received','conversation',$2,'integration',$3)`,
@@ -151,9 +161,15 @@ async function syncWahaHistory(workspaceId, config) {
   for (const chat of rows) {
     const chatId = chat.id || chat.chatId;
     if (!chatId || chatId === 'status@broadcast') continue;
+    let chatPhone = null;
+    if (String(chatId).endsWith('@lid')) {
+      const lid = await getLidPhone(config.session, chatId, config).catch(() => null);
+      chatPhone = phoneFromChatId(lid?.pn || '');
+    }
+    const chatName = chat.name || chat._chat?.name || chat._chat?.formattedName || chat._chat?.notifyName || chatPhone || phoneFromChatId(chatId);
     const messages = await getChatMessages(config.session, chatId, config, { limit: 100 });
     for (const payload of Array.isArray(messages) ? messages : []) {
-      const conversationId = await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload });
+      const conversationId = await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload, chatName, chatPhone });
       if (conversationId) imported += 1;
     }
   }

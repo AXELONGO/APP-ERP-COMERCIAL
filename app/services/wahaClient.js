@@ -65,6 +65,10 @@ async function getChatMessages(session, chatId, wahaConfig = {}, { limit = 100, 
   return requestWaha(`${chatPath(session, chatId)}/messages?limit=${limit}&offset=${offset}&downloadMedia=false`, { wahaConfig });
 }
 
+async function getLidPhone(session, lid, wahaConfig = {}) {
+  return requestWaha(`/api/${encodeURIComponent(session)}/lids/${encodeURIComponent(lid)}`, { wahaConfig });
+}
+
 async function configureAndStartSession({ webhookUrl, webhookSecret, wahaConfig = {} } = {}) {
   const config = getWahaConfig(wahaConfig);
   const webhooks = webhookUrl ? [{
@@ -116,6 +120,7 @@ module.exports = {
   getSession,
   getChats,
   getChatMessages,
+  getLidPhone,
   configureAndStartSession,
   stopSession,
   getQr,

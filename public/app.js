@@ -414,7 +414,7 @@ async function loadChats() {
     wahaConversations = result.data || [];
     renderWahaConversations();
     if (activeWahaConversation) selectWahaConversation(activeWahaConversation.id);
-    if (!wahaPollTimer) wahaPollTimer = setInterval(() => { if (currentSection === 'chats') loadChats(); }, 10000);
+    if (!wahaPollTimer) wahaPollTimer = setInterval(() => { if (currentSection === 'chats') loadChats(); }, 30000);
   } catch (error) {
     if (error.status === 401) {
       if (loginButton) loginButton.style.display = 'inline-flex';
