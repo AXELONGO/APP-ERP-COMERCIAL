@@ -5,6 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "db:migrate": "node scripts/migrations/migrate_postgres.js",
+    "db:seed-admin": "node scripts/migrations/seed_admin.js",
+    "docs:pdf": "python3 scripts/build_chatbots_pdf.py",
     "test:pipeline": "node scripts/test/test_pipeline_validation.js",
     "test:communication": "node scripts/test/test_communication_agent.js",
     "migrate:pipelines": "node scripts/migrations/migrate_dynamic_pipelines.js",
@@ -24,6 +27,7 @@
     "express-rate-limit": "^8.5.2",
     "googleapis": "^173.0.0",
     "helmet": "^8.2.0",
+    "pg": "^8.16.3",
     "pdfkit": "^0.19.1",
     "pngjs": "^7.0.0"
   },

@@ -115,3 +115,60 @@ npm run migrate:pipelines
 ```
 
 La aplicación conserva `Etapa actual`, `Etapa` y `Estado` para compatibilidad. La edición se realiza desde `Tableros > Configurar pipeline` o mediante `/api/pipelines`.
+
+---
+
+## CHATBOTS COMERCIALES
+
+La guía técnica para crear y replicar agentes comerciales está disponible en:
+
+- `docs/CHATBOTS_COMERCIALES.md`: fuente editable.
+- `docs/CHATBOTS COMERCIALES.pdf`: versión PDF.
+
+Incluye Google ADK, `adk web`, tools comerciales, Gmail, Sheets, Drive, Calendar, WhatsApp, PostgreSQL, EasyPanel, seguridad, costos, pruebas y checklist de entrega.
+
+## ERP Core V2
+
+La base de la nueva arquitectura incluye rutas protegidas y PostgreSQL para empresas, usuarios, contactos, conversaciones, mensajes y auditoría.
+
+Configura `DATABASE_URL` y `ERP_AUTH_SECRET`, luego ejecuta:
+
+```bash
+npm run db:migrate
+npm run db:seed-admin
+```
+
+Las nuevas rutas viven bajo `/api/v2` y requieren un token Bearer. Los módulos actuales de Google Sheets continúan disponibles durante la migración gradual.
+
+## CHATBOTS COMERCIALES
+
+La guía para crear y replicar agentes comerciales está disponible en:
+
+- `docs/CHATBOTS COMERCIALES.pdf`: PDF técnico con tecnologías, Google ADK, `adk web`, tools, Google Workspace, WhatsApp, EasyPanel y checklist por cliente.
+- `docs/CHATBOTS_COMERCIALES.md`: fuente editable de la guía.
+
+Regenera el PDF con:
+
+```bash
+npm run docs:pdf
+```
+
+## Núcleo ERP V2
+
+El repositorio incluye una base inicial persistente bajo `/api/v2`:
+
+- Autenticación por token firmado.
+- Empresas y usuarios con roles.
+- PostgreSQL como base transaccional.
+- Contactos con detección de duplicados.
+- Conversaciones y mensajes.
+- Eventos de auditoría.
+
+Configura `DATABASE_URL`, `ERP_AUTH_SECRET`, `ADMIN_EMAIL` y `ADMIN_PASSWORD`; después ejecuta:
+
+```bash
+npm run db:migrate
+npm run db:seed-admin
+```
+
+El ERP existente basado en Google Sheets continúa disponible para permitir una migración gradual hacia PostgreSQL.
