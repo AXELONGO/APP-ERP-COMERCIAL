@@ -453,6 +453,13 @@ function escapeWahaHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
 }
 
+function wahaDisplayName(item) {
+  const name = String(item?.contact_name || '').trim();
+  const identity = String(item?.phone_e164 || '').trim();
+  const hasUsefulName = name && !/@(?:lid|c\.us|g\.us|newsletter)$/i.test(name) && name !== identity;
+  return hasUsefulName ? name : identity.replace(/@(lid|c\.us|g\.us|newsletter)$/i, '');
+}
+
 function renderWahaConversations() {
   const search = String(document.getElementById('wahaSearch')?.value || '').toLowerCase();
   const rows = wahaConversations.filter(item => (wahaFilter === 'all' || item.status === wahaFilter) && `${item.contact_name} ${item.phone_e164}`.toLowerCase().includes(search));
@@ -462,7 +469,7 @@ function renderWahaConversations() {
     list.innerHTML = '<div class="inbox-empty"><i class="ph ph-chat-circle-dots"></i><span>No se encontraron chats</span><small>Los mensajes de WAHA aparecerán aquí.</small></div>';
     return;
   }
-  list.innerHTML = rows.map(item => `<button class="waha-conversation-item ${activeWahaConversation?.id === item.id ? 'active' : ''}" onclick="selectWahaConversation('${item.id}')"><span class="waha-contact-avatar">${escapeWahaHtml((item.contact_name || '?').slice(0, 1).toUpperCase())}</span><span class="waha-conversation-copy"><strong>${escapeWahaHtml(item.contact_name || item.phone_e164)}</strong><small>${escapeWahaHtml(item.channel || 'whatsapp')} · ${escapeWahaHtml(item.status || 'new')}</small></span><time>${item.last_activity_at ? new Date(item.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</time></button>`).join('');
+  list.innerHTML = rows.map(item => `<button class="waha-conversation-item ${activeWahaConversation?.id === item.id ? 'active' : ''}" onclick="selectWahaConversation('${item.id}')"><span class="waha-contact-avatar">${escapeWahaHtml(wahaDisplayName(item).slice(0, 1).toUpperCase())}</span><span class="waha-conversation-copy"><strong>${escapeWahaHtml(wahaDisplayName(item))}</strong><small>${escapeWahaHtml(item.channel || 'whatsapp')} · ${escapeWahaHtml(item.status || 'new')}</small></span><time>${item.last_activity_at ? new Date(item.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</time></button>`).join('');
 }
 
 function setWahaFilter(filter) { wahaFilter = filter; renderWahaConversations(); }
@@ -481,11 +488,11 @@ async function selectWahaConversation(id) {
   if (!activeWahaConversation) return;
   document.getElementById('wahaThread').classList.remove('hidden');
   document.getElementById('wahaThreadEmpty').classList.add('hidden');
-  document.getElementById('wahaThreadName').textContent = activeWahaConversation.contact_name || activeWahaConversation.phone_e164;
+  document.getElementById('wahaThreadName').textContent = wahaDisplayName(activeWahaConversation);
   document.getElementById('wahaThreadName').onclick = () => activeWahaConversation.contact_id && openContactPanel(activeWahaConversation.contact_id);
   document.getElementById('wahaThreadName').classList.add('contact-name-link');
   document.getElementById('wahaThreadPhone').textContent = activeWahaConversation.phone_e164 || '';
-  document.getElementById('wahaContactDetails').innerHTML = `<i class="ph ph-user-circle"></i><strong>${escapeWahaHtml(activeWahaConversation.contact_name || 'Contacto')}</strong><small>${escapeWahaHtml(activeWahaConversation.phone_e164 || '')}</small><span class="soft-badge gray">Etapa: ${escapeWahaHtml(activeWahaConversation.pipeline_stage || 'new')}</span>`;
+  document.getElementById('wahaContactDetails').innerHTML = `<i class="ph ph-user-circle"></i><strong>${escapeWahaHtml(wahaDisplayName(activeWahaConversation))}</strong><small>${escapeWahaHtml(activeWahaConversation.phone_e164 || '')}</small><span class="soft-badge gray">Etapa: ${escapeWahaHtml(activeWahaConversation.pipeline_stage || 'new')}</span>`;
   try {
     const result = await v2Fetch(`/api/v2/conversations/${encodeURIComponent(id)}/messages?limit=200`);
     const messages = result.data || [];
