@@ -410,6 +410,7 @@ async function loadChats() {
     document.getElementById('wahaStartButton').style.display = status.session?.status === 'WORKING' ? 'none' : 'inline-flex';
     document.getElementById('wahaQrButton').style.display = ['SCAN_QR_CODE', 'STARTING'].includes(status.session?.status) ? 'inline-flex' : 'none';
     setWahaStatus(status.configured ? `WAHA: ${status.session?.status || 'configurado'}` : 'WAHA no configurado', status.configured ? 'La sesión está conectada al CRM.' : 'Configura WAHA_BASE_URL en las variables del servidor.', status.session?.status === 'WORKING');
+    await v2Fetch('/api/v2/waha/sync-recent', { method: 'POST', body: '{}' }).catch(() => null);
     const result = await v2Fetch('/api/v2/conversations?limit=100');
     wahaConversations = result.data || [];
     renderWahaConversations();

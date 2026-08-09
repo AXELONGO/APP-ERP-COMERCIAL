@@ -6,6 +6,7 @@ const {
   getChats,
   getChatMessages,
   getLidPhone,
+  getContact,
   configureAndStartSession,
   stopSession,
   getQr,
@@ -162,15 +163,36 @@ async function syncWahaHistory(workspaceId, config) {
     const chatId = chat.id || chat.chatId;
     if (!chatId || chatId === 'status@broadcast') continue;
     let chatPhone = null;
+    let contact = null;
     if (String(chatId).endsWith('@lid')) {
       const lid = await getLidPhone(config.session, chatId, config).catch(() => null);
       chatPhone = phoneFromChatId(lid?.pn || '');
+      contact = await getContact(config.session, chatId, config).catch(() => null);
     }
-    const chatName = chat.name || chat._chat?.name || chat._chat?.formattedName || chat._chat?.notifyName || chatPhone || phoneFromChatId(chatId);
+    chatPhone = chatPhone || phoneFromChatId(contact?.number ? `${contact.number}@c.us` : contact?.id || '');
+    const chatName = chat.name || chat._chat?.name || chat._chat?.formattedName || chat._chat?.notifyName || contact?.name || contact?.pushname || contact?.shortName || chatPhone || phoneFromChatId(chatId);
     const messages = await getChatMessages(config.session, chatId, config, { limit: 100 });
     for (const payload of Array.isArray(messages) ? messages : []) {
       const conversationId = await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload, chatName, chatPhone });
       if (conversationId) imported += 1;
+    }
+  }
+  return { chats: rows.length, messages: imported };
+}
+
+async function syncWahaRecent(workspaceId, config) {
+  const chats = await getChats(config.session, config, { limit: 25, offset: 0 });
+  const rows = Array.isArray(chats) ? chats : [];
+  let imported = 0;
+  for (const chat of rows) {
+    const chatId = chat.id || chat.chatId;
+    if (!chatId || chatId === 'status@broadcast') continue;
+    const contact = String(chatId).endsWith('@lid') ? await getContact(config.session, chatId, config).catch(() => null) : null;
+    const chatPhone = phoneFromChatId(contact?.number ? `${contact.number}@c.us` : contact?.id || chatId);
+    const chatName = chat.name || chat._chat?.name || chat._chat?.formattedName || contact?.name || contact?.pushname || contact?.shortName || chatPhone;
+    const messages = await getChatMessages(config.session, chatId, config, { limit: 25, offset: 0 });
+    for (const payload of Array.isArray(messages) ? messages : []) {
+      if (await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload, chatName, chatPhone })) imported += 1;
     }
   }
   return { chats: rows.length, messages: imported };
@@ -200,6 +222,14 @@ function registerWahaRoutes(app) {
     try {
       const config = await workspaceWahaConfig(req.workspaceId);
       const result = await syncWahaHistory(req.workspaceId, config);
+      res.json({ ok: true, ...result });
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/v2/waha/sync-recent', requireV2Auth, requireRole('admin', 'supervisor', 'advisor'), async (req, res, next) => {
+    try {
+      const config = await workspaceWahaConfig(req.workspaceId);
+      const result = await syncWahaRecent(req.workspaceId, config);
       res.json({ ok: true, ...result });
     } catch (error) { next(error); }
   });
