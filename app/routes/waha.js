@@ -8,6 +8,7 @@ const {
   getQr,
   sendText,
 } = require('../services/wahaClient');
+const { getIntegrationConfig } = require('../services/integrationConfig');
 
 function phoneFromChatId(chatId) {
   const value = String(chatId || '').trim();
@@ -24,6 +25,11 @@ function chatIdFromPhone(phone) {
 function webhookSecretMatches(req) {
   const expected = process.env.WAHA_WEBHOOK_SECRET || '';
   return !expected || req.get('x-erp-webhook-secret') === expected;
+}
+
+async function workspaceWahaConfig(workspaceId) {
+  const saved = await getIntegrationConfig(workspaceId, 'waha');
+  return { ...getWahaConfig(), ...(saved.config || {}) };
 }
 
 async function ensureConversation(client, workspaceId, chatId, displayName) {
@@ -114,28 +120,29 @@ async function persistWahaAck(workspaceId, payload) {
 function registerWahaRoutes(app) {
   app.get('/api/v2/waha/status', requireV2Auth, async (req, res, next) => {
     try {
-      const config = getWahaConfig();
+      const config = await workspaceWahaConfig(req.workspaceId);
       if (!config.baseUrl) return res.json({ configured: false, session: config.session });
-      const session = await getSession(config.session);
+      const session = await getSession(config.session, config);
       res.json({ configured: true, session });
     } catch (error) { next(error); }
   });
 
   app.post('/api/v2/waha/session/start', requireV2Auth, requireRole('admin', 'supervisor'), async (req, res, next) => {
     try {
-      const webhookUrl = process.env.WAHA_WEBHOOK_URL || (process.env.PUBLIC_BASE_URL ? `${process.env.PUBLIC_BASE_URL.replace(/\/$/, '')}/api/v2/waha/webhook` : '');
+      const config = await workspaceWahaConfig(req.workspaceId);
+      const webhookUrl = config.webhookUrl || process.env.WAHA_WEBHOOK_URL || (process.env.PUBLIC_BASE_URL ? `${process.env.PUBLIC_BASE_URL.replace(/\/$/, '')}/api/v2/waha/webhook` : '');
       if (!webhookUrl) return res.status(503).json({ error: 'Configura WAHA_WEBHOOK_URL o PUBLIC_BASE_URL antes de iniciar la sesión' });
-      const session = await configureAndStartSession({ webhookUrl, webhookSecret: process.env.WAHA_WEBHOOK_SECRET });
+      const session = await configureAndStartSession({ webhookUrl, webhookSecret: config.webhookSecret || process.env.WAHA_WEBHOOK_SECRET, wahaConfig: config });
       res.json({ data: session });
     } catch (error) { next(error); }
   });
 
   app.post('/api/v2/waha/session/stop', requireV2Auth, requireRole('admin', 'supervisor'), async (req, res, next) => {
-    try { res.json({ data: await stopSession() }); } catch (error) { next(error); }
+    try { const config = await workspaceWahaConfig(req.workspaceId); res.json({ data: await stopSession(config.session, config) }); } catch (error) { next(error); }
   });
 
   app.get('/api/v2/waha/qr', requireV2Auth, async (req, res, next) => {
-    try { res.json({ data: await getQr() }); } catch (error) { next(error); }
+    try { const config = await workspaceWahaConfig(req.workspaceId); res.json({ data: await getQr(config.session, config) }); } catch (error) { next(error); }
   });
 
   app.post('/api/v2/waha/send', requireV2Auth, requireRole('admin', 'supervisor', 'advisor'), async (req, res, next) => {
@@ -151,7 +158,8 @@ function registerWahaRoutes(app) {
       const row = conversation.rows[0];
       const chatId = row?.provider_conversation_id || chatIdFromPhone(row?.phone_e164);
       if (!row || !chatId) return res.status(404).json({ error: 'Conversación WAHA no encontrada' });
-      const result = await sendText({ chatId, text: String(body).trim(), replyTo });
+      const config = await workspaceWahaConfig(req.workspaceId);
+      const result = await sendText({ session: config.session, wahaConfig: config, chatId, text: String(body).trim(), replyTo });
       const inserted = await query(
         `INSERT INTO messages (workspace_id,conversation_id,direction,channel,body,provider_message_id,delivery_status,created_by)
          VALUES ($1,$2,'outbound','whatsapp',$3,$4,'sent',$5) RETURNING *`,

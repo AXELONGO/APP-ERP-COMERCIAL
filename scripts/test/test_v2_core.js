@@ -20,7 +20,7 @@ assert.equal(verifyToken(token).workspace_id, 'workspace-1');
 assert.equal(verifyToken(`${token}invalid`), null);
 
 const schema = fs.readFileSync(path.join(__dirname, '../../db/schema.sql'), 'utf8');
-for (const table of ['workspaces', 'users', 'contacts', 'conversations', 'messages', 'pipeline_stages', 'stage_history', 'appointments', 'audit_events']) {
+for (const table of ['workspaces', 'users', 'contacts', 'conversations', 'messages', 'pipeline_stages', 'stage_history', 'appointments', 'integration_configs', 'audit_events']) {
   assert.match(schema, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
 }
 

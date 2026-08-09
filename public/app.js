@@ -510,7 +510,49 @@ async function showWahaQr() {
 
 function loadAgent() {}
 function loadAnalyticsOverview() {}
-function loadIntegrations() {}
+
+async function loadIntegrations() {
+  try {
+    const result = await v2Fetch('/api/v2/integrations');
+    window.integrationConfigs = Object.fromEntries((result.data || []).map(item => [item.provider, item]));
+  } catch (error) {
+    if (error.status === 401) showToast('Inicia sesión en el CRM para configurar integraciones.', true);
+  }
+}
+
+async function openIntegrationConfig(provider) {
+  try {
+    const result = await v2Fetch(`/api/v2/integrations/${encodeURIComponent(provider)}`);
+    const integration = result.data;
+    const fields = integration.fields || [];
+    const body = `<form onsubmit="saveIntegrationConfig(event, '${provider}')"><div class="integration-form-intro"><span class="integration-form-icon"><i class="ph ph-plugs-connected"></i></span><div><strong>${escapeDetailHtml(integration.label)}</strong><p>Guarda las variables de este workspace. Los secretos existentes se conservan si dejas el campo vacío.</p></div></div><div class="form-grid integration-form-grid">${fields.map(field => `<div class="form-group ${field.key === 'credentialsJson' ? 'full-width' : ''}"><label>${escapeDetailHtml(field.label)} ${field.secret && field.hasValue ? '<small class="secret-saved">Guardado</small>' : ''}</label>${field.key === 'credentialsJson' ? `<textarea name="${field.key}" rows="8" placeholder="Pega aquí el JSON de credenciales">${escapeDetailHtml(field.value || '')}</textarea>` : `<input name="${field.key}" type="${field.secret ? 'password' : 'text'}" value="${escapeDetailHtml(field.value || '')}" placeholder="${field.secret && field.hasValue ? 'Dejar vacío para conservarlo' : ''}" autocomplete="new-password">`}</div>`).join('')}</div><label class="integration-enabled"><input type="checkbox" name="enabled" ${integration.enabled ? 'checked' : ''}> Activar esta integración</label><div class="integration-form-actions"><button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar y probar</button></div></form>`;
+    openModal(`Configurar ${integration.label}`, body);
+  } catch (error) {
+    if (error.status === 401) return loginV2();
+    showToast(error.message, true);
+  }
+}
+
+async function saveIntegrationConfig(event, provider) {
+  event.preventDefault();
+  const form = event.target;
+  const payload = Object.fromEntries(new FormData(form).entries());
+  payload.enabled = form.enabled.checked;
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    await v2Fetch(`/api/v2/integrations/${encodeURIComponent(provider)}`, { method: 'PUT', body: JSON.stringify(payload) });
+    try {
+      const test = await v2Fetch(`/api/v2/integrations/${encodeURIComponent(provider)}/test`, { method: 'POST', body: '{}' });
+      showToast(`<i class="ph-fill ph-check-circle" style="color:#10b981"></i> ${test.detail || 'Integración configurada'}`);
+    } catch (error) {
+      showToast(`Variables guardadas, pero la prueba falló: ${error.message}`, true);
+    }
+    closeModal();
+    loadIntegrations();
+  } catch (error) { showToast(error.message, true); }
+  finally { button.disabled = false; }
+}
 
 // ── LOAD SECTION ─────────────────────────────────────────────────
 function loadSection(section) {

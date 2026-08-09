@@ -152,3 +152,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS appointments_provider_event_unique
 
 CREATE INDEX IF NOT EXISTS appointments_workspace_starts_idx
   ON appointments (workspace_id, starts_at);
+
+CREATE TABLE IF NOT EXISTS integration_configs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  provider text NOT NULL,
+  config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  enabled boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, provider)
+);
+
+CREATE INDEX IF NOT EXISTS integration_configs_workspace_idx
+  ON integration_configs (workspace_id, updated_at DESC);

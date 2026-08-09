@@ -1,28 +1,30 @@
 const DEFAULT_SESSION = 'default';
 
-function getWahaConfig() {
+function getWahaConfig(overrides = {}) {
   return {
     baseUrl: String(process.env.WAHA_BASE_URL || '').replace(/\/$/, ''),
     apiKey: process.env.WAHA_API_KEY || '',
     session: process.env.WAHA_SESSION || DEFAULT_SESSION,
+    ...overrides,
   };
 }
 
-function assertConfigured() {
-  const config = getWahaConfig();
+function assertConfigured(overrides = {}) {
+  const config = getWahaConfig(overrides);
   if (!config.baseUrl) throw new Error('WAHA_BASE_URL no está configurada');
   return config;
 }
 
 async function requestWaha(path, options = {}) {
-  const config = assertConfigured();
+  const { wahaConfig = {}, ...requestOptions } = options;
+  const config = assertConfigured(wahaConfig);
   const headers = {
     Accept: 'application/json',
-    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(requestOptions.body ? { 'Content-Type': 'application/json' } : {}),
     ...(config.apiKey ? { 'X-Api-Key': config.apiKey } : {}),
-    ...(options.headers || {}),
+    ...(requestOptions.headers || {}),
   };
-  const response = await fetch(`${config.baseUrl}${path}`, { ...options, headers });
+  const response = await fetch(`${config.baseUrl}${path}`, { ...requestOptions, headers });
   const text = await response.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
@@ -43,16 +45,16 @@ function sessionPath(session, action = '') {
   return `/api/sessions/${encodeURIComponent(session)}${action ? `/${action}` : ''}`;
 }
 
-async function getSessions() {
-  return requestWaha('/api/sessions?all=true');
+async function getSessions(wahaConfig = {}) {
+  return requestWaha('/api/sessions?all=true', { wahaConfig });
 }
 
-async function getSession(session = getWahaConfig().session) {
-  return requestWaha(sessionPath(session));
+async function getSession(session = getWahaConfig().session, wahaConfig = {}) {
+  return requestWaha(sessionPath(session), { wahaConfig });
 }
 
-async function configureAndStartSession({ webhookUrl, webhookSecret } = {}) {
-  const config = getWahaConfig();
+async function configureAndStartSession({ webhookUrl, webhookSecret, wahaConfig = {} } = {}) {
+  const config = getWahaConfig(wahaConfig);
   const webhooks = webhookUrl ? [{
     url: webhookUrl,
     events: ['message', 'message.ack', 'session.status'],
@@ -66,24 +68,25 @@ async function configureAndStartSession({ webhookUrl, webhookSecret } = {}) {
       noweb: { store: { enabled: true, fullSync: false } },
     },
   };
-  const sessions = await getSessions();
+  const sessions = await getSessions(config);
   const exists = Array.isArray(sessions) && sessions.some(item => item.name === config.session);
-  if (exists) await requestWaha(sessionPath(config.session), { ...jsonOptions('PUT', payload) });
-  else await requestWaha('/api/sessions', { ...jsonOptions('POST', payload) });
-  return requestWaha(sessionPath(config.session, 'start'), { method: 'POST' });
+  if (exists) await requestWaha(sessionPath(config.session), { ...jsonOptions('PUT', payload), wahaConfig: config });
+  else await requestWaha('/api/sessions', { ...jsonOptions('POST', payload), wahaConfig: config });
+  return requestWaha(sessionPath(config.session, 'start'), { method: 'POST', wahaConfig: config });
 }
 
-async function stopSession(session = getWahaConfig().session) {
-  return requestWaha(sessionPath(session, 'stop'), { method: 'POST' });
+async function stopSession(session = getWahaConfig().session, wahaConfig = {}) {
+  return requestWaha(sessionPath(session, 'stop'), { method: 'POST', wahaConfig });
 }
 
-async function getQr(session = getWahaConfig().session) {
-  return requestWaha(`/api/${encodeURIComponent(session)}/auth/qr`, { method: 'POST' });
+async function getQr(session = getWahaConfig().session, wahaConfig = {}) {
+  return requestWaha(`/api/${encodeURIComponent(session)}/auth/qr`, { method: 'POST', wahaConfig });
 }
 
-async function sendText({ session = getWahaConfig().session, chatId, text, replyTo } = {}) {
+async function sendText({ session = getWahaConfig().session, chatId, text, replyTo, wahaConfig = {} } = {}) {
   return requestWaha('/api/sendText', {
     ...jsonOptions('POST', { session, chatId, text, ...(replyTo ? { reply_to: replyTo } : {}) }),
+    wahaConfig,
   });
 }
 
