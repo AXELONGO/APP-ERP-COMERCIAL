@@ -327,10 +327,13 @@ function rechainTransitions(definition) {
   for (let index = 0; index < activeStages.length - 1; index += 1) {
     const from = activeStages[index];
     const to = activeStages[index + 1];
-    const pair = `${from.stage_id}->${to.stage_id}`;
-    if (!pairs.has(pair)) {
-      transitions.push({ transition_id: `TR-${from.stage_id}-${to.stage_id}`, pipeline_id: definition.pipeline_id, from_stage_id: from.stage_id, to_stage_id: to.stage_id, event_key: 'stage_changed', order_index: transitions.length, active: true, conditions: [], actions: [] });
-    }
+    [[from, to], [to, from]].forEach(([source, target]) => {
+      const pair = `${source.stage_id}->${target.stage_id}`;
+      if (!pairs.has(pair)) {
+        transitions.push({ transition_id: `TR-${source.stage_id}-${target.stage_id}`, pipeline_id: definition.pipeline_id, from_stage_id: source.stage_id, to_stage_id: target.stage_id, event_key: 'stage_changed', order_index: transitions.length, active: true, conditions: [], actions: [] });
+        pairs.add(pair);
+      }
+    });
   }
   return { ...definition, transitions: [...transitions, ...preservedTransitions] };
 }
@@ -385,7 +388,7 @@ async function replaceSheet(sheets, key, rows) {
   });
 }
 
-async function persistDefinitions(sheets, definitions, audits = [], versions = []) {
+async function persistDefinitions(sheets, definitions, audits = [], versions = [], { removeStatePipelineIds = [] } = {}) {
   const rows = { pipelines: [], stages: [], steps: [], transitions: [], conditions: [], states: [], versions: [], audit: [] };
   definitions.forEach(definition => {
     rows.pipelines.push(pipelineRow(definition));
@@ -397,7 +400,10 @@ async function persistDefinitions(sheets, definitions, audits = [], versions = [
     rows.conditions.push(...conditionRows(definition));
   });
   const snapshot = await readSnapshot(sheets);
-  rows.states = (snapshot.states || []).map(row => HEADERS.states.map(header => row[header] ?? ''));
+  const removedStatePipelines = new Set(removeStatePipelineIds);
+  rows.states = (snapshot.states || [])
+    .filter(row => !removedStatePipelines.has(row.pipeline_id))
+    .map(row => HEADERS.states.map(header => row[header] ?? ''));
   rows.versions = (snapshot.versions || []).map(row => HEADERS.versions.map(header => row[header] ?? '')).concat(versions);
   rows.audit = (snapshot.audit || []).map(row => HEADERS.audit.map(header => row[header] ?? '')).concat(audits);
   for (const key of Object.keys(HEADERS)) await replaceSheet(sheets, key, rows[key]);
@@ -513,6 +519,32 @@ async function updatePipeline(reference, patch, options = {}) {
 
 async function archivePipeline(reference, options = {}) {
   return updatePipeline(reference, { active: false, status: 'archived' }, options);
+}
+
+async function deletePipeline(reference, { actor = null, source = 'api_delete' } = {}) {
+  const definition = await getPipeline(reference);
+  if (LEGACY_MAP[definition.key]) {
+    throw validationError('Los pipelines base del ERP no se pueden borrar', 409);
+  }
+
+  const sheets = await getSheets();
+  await ensurePipelineSheets(sheets);
+  const snapshot = await readSnapshot(sheets);
+  const definitions = definitionsFromSnapshot(snapshot).filter(item => item.pipeline_id !== definition.pipeline_id);
+  const audits = [auditRow({
+    pipelineId: definition.pipeline_id,
+    targetType: 'pipeline',
+    targetId: definition.pipeline_id,
+    changeType: 'deleted',
+    actor,
+    source,
+    diff: { deleted: definition },
+    previousVersion: definition.version,
+    newVersion: ''
+  })];
+  await persistDefinitions(sheets, definitions, audits, [], { removeStatePipelineIds: [definition.pipeline_id] });
+  invalidatePipelineDefinitions();
+  return { deleted: true, pipeline_id: definition.pipeline_id, key: definition.key };
 }
 
 async function publishPipeline(reference, options = {}) {
@@ -765,6 +797,7 @@ module.exports = {
   savePipeline,
   updatePipeline,
   archivePipeline,
+  deletePipeline,
   publishPipeline,
   rollbackPipeline,
   validateLegacyStageChange,

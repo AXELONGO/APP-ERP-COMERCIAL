@@ -8,7 +8,8 @@ const {
   getState,
   getAudit,
   validateLegacyStageChange,
-  removeStage
+  removeStage,
+  deletePipeline
 } = require('../services/pipelineService');
 const { validatePipelineDefinition } = require('../utils/pipelineValidation');
 
@@ -45,7 +46,7 @@ function registerPipelineRoutes(app) {
   }));
 
   app.delete('/api/pipelines/:pipelineId', asyncHandler(async (req, res) => {
-    res.status(405).json({ error: 'Los pipelines existentes no se pueden archivar desde este módulo.' });
+    res.json(await deletePipeline(req.params.pipelineId, { actor: actorFromRequest(req), source: 'pipeline_delete' }));
   }));
 
   app.post('/api/pipelines/:pipelineId/publish', asyncHandler(async (req, res) => {

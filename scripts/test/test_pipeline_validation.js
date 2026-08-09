@@ -47,6 +47,7 @@ const reconnected = rechainTransitions(shortened);
 assert(reconnected.transitions.some(transition => transition.from_stage_id === valid.stages[1].stage_id && transition.to_stage_id === valid.stages[3].stage_id));
 const generated = rechainTransitions({ ...valid, transitions: [] });
 assert(generated.transitions.some(transition => transition.from_stage_id === valid.stages[0].stage_id && transition.to_stage_id === valid.stages[1].stage_id));
+assert(generated.transitions.some(transition => transition.from_stage_id === valid.stages[1].stage_id && transition.to_stage_id === valid.stages[0].stage_id));
 
 assert.strictEqual(evaluateConditions([{ field: 'Estado', operator: 'eq', value: 'Activo' }], { Estado: 'Activo' }), true);
 assert.strictEqual(evaluateConditions([{ field: 'Monto', operator: 'gt', value: 10 }], { Monto: 5 }), false);

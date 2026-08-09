@@ -2956,7 +2956,10 @@ async function createPipelineFromForm(event) {
     const response = await fetch(`${API}/api/pipelines`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Name': 'Administrador', 'X-Source': 'pipeline_creator' }, body: JSON.stringify({
       key, name: form.name.value.trim(), entity_type: entityType, status: 'draft', active: true,
       stages: stageNames.map((stageName, index) => ({ stage_id: stageIds[index], stage_key: stageName.toLowerCase().replace(/[^a-z0-9]+/g, '_'), name: stageName, type: 'stage', order_index: index, active: true, is_initial: index === 0, is_terminal: index === stageNames.length - 1, legacy_value: stageValues[index] || stageName, conditions: [], actions: [], steps: [] })),
-      transitions: stageNames.slice(1).map((_, index) => ({ transition_id: `TR-${pipelineSeed}-${index}`, from_stage_id: stageIds[index], to_stage_id: stageIds[index + 1], event_key: 'stage_changed', order_index: index, active: true, conditions: [], actions: [] }))
+       transitions: stageNames.slice(1).flatMap((_, index) => [
+         { transition_id: `TR-${pipelineSeed}-${index}-forward`, from_stage_id: stageIds[index], to_stage_id: stageIds[index + 1], event_key: 'stage_changed', order_index: index * 2, active: true, conditions: [], actions: [] },
+         { transition_id: `TR-${pipelineSeed}-${index}-backward`, from_stage_id: stageIds[index + 1], to_stage_id: stageIds[index], event_key: 'stage_changed', order_index: index * 2 + 1, active: true, conditions: [], actions: [] }
+       ])
     }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'No se pudo crear el pipeline');
@@ -2970,7 +2973,21 @@ async function createPipelineFromForm(event) {
 function renderPipelineCatalog(definitions) {
   const container = document.getElementById('pipelineEditorBody');
   if (!container) return;
-  container.innerHTML = `<div class="pipeline-readonly-list">${definitions.map(definition => `<article class="pipeline-readonly-card"><div><strong>${escapeDetailHtml(definition.name)}</strong><span>${escapeDetailHtml(definition.key)} · ${escapeDetailHtml(definition.entity_type)}</span></div><div class="pipeline-readonly-meta"><span class="badge badge-${definition.status === 'published' ? 'green' : 'orange'}">${definition.status === 'published' ? 'Publicado' : 'Borrador'}</span><span>${definition.stages.filter(stage => stage.active !== false).length} etapas</span><span>v${definition.version}</span></div><div class="pipeline-readonly-stages">${definition.stages.filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index).map((stage, index) => `<span>${index + 1}. ${escapeDetailHtml(stage.name)}</span>`).join('')}</div><button class="btn btn-outline btn-small pipeline-edit-stages" onclick="openPipelineStageEditor(decodeURIComponent('${encodeURIComponent(definition.key)}'))"><i class="ph ph-pencil-simple"></i> Editar etapas</button></article>`).join('')}</div>`;
+   container.innerHTML = `<div class="pipeline-readonly-list">${definitions.map(definition => { const isBase = ['proyectos', 'prospectos', 'tareas'].includes(definition.key); return `<article class="pipeline-readonly-card"><div><strong>${escapeDetailHtml(definition.name)}</strong><span>${escapeDetailHtml(definition.key)} · ${escapeDetailHtml(definition.entity_type)}</span></div><div class="pipeline-readonly-meta"><span class="badge badge-${definition.status === 'published' ? 'green' : 'orange'}">${definition.status === 'published' ? 'Publicado' : 'Borrador'}</span><span>${definition.stages.filter(stage => stage.active !== false).length} etapas</span><span>v${definition.version}</span></div><div class="pipeline-readonly-stages">${definition.stages.filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index).map((stage, index) => `<span>${index + 1}. ${escapeDetailHtml(stage.name)}</span>`).join('')}</div><div class="pipeline-card-actions"><button class="btn btn-outline btn-small" onclick="openPipelineStageEditor(decodeURIComponent('${encodeURIComponent(definition.key)}'))"><i class="ph ph-pencil-simple"></i> Editar etapas</button>${isBase ? '<span class="text-muted pipeline-protected-label">Pipeline base protegido</span>' : `<button class="btn btn-outline btn-small btn-danger-outline" onclick="deletePipelineFromCatalog(decodeURIComponent('${encodeURIComponent(definition.key)}'), decodeURIComponent('${encodeURIComponent(definition.name)}'))"><i class="ph ph-trash"></i> Borrar</button>`}</div></article>`; }).join('')}</div>`;
+}
+
+async function deletePipelineFromCatalog(key, name) {
+  if (!confirm(`¿Borrar el pipeline "${name}"? Se eliminarán sus etapas, reglas e historial de estados.`)) return;
+  try {
+    const response = await fetch(`${API}/api/pipelines/${encodeURIComponent(key)}`, { method: 'DELETE', headers: { 'X-User-Name': 'Administrador', 'X-Source': 'pipeline_catalog' } });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'No se pudo borrar el pipeline');
+    delete window.pipelineEditorState.definitions[key];
+    delete window.pipelineConfigs[key];
+    showToast('Pipeline borrado correctamente');
+    await loadAvailablePipelines();
+    await openPipelineManager();
+  } catch (error) { showToast(error.message, true); }
 }
 
 function openPipelineStageEditor(key) {
