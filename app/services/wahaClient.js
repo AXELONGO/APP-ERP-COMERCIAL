@@ -58,7 +58,7 @@ async function getSession(session = getWahaConfig().session, wahaConfig = {}) {
 }
 
 async function getChats(session = getWahaConfig().session, wahaConfig = {}, { limit = 100, offset = 0 } = {}) {
-  return requestWaha(`${chatPath(session)}?limit=${limit}&offset=${offset}&sortBy=messageTimestamp&sortOrder=desc`, { wahaConfig });
+  return requestWaha(`${chatPath(session)}?limit=${limit}&offset=${offset}&sortBy=conversationTimestamp&sortOrder=desc`, { wahaConfig });
 }
 
 async function getChatMessages(session, chatId, wahaConfig = {}, { limit = 100, offset = 0 } = {}) {

@@ -1901,7 +1901,7 @@ function emptyState() {
 // ── TOAST ─────────────────────────────────────────────────────────
 function showToast(msg, isError = false) {
   const toast = document.getElementById('toast');
-  toast.textContent = msg;
+  toast.innerHTML = msg;
   toast.style.borderColor = isError ? 'var(--accent-red)' : 'var(--accent-green)';
   toast.style.color = isError ? 'var(--accent-red)' : 'var(--accent-green)';
   toast.classList.remove('hidden');
