@@ -2,10 +2,10 @@
 
 ## Guia de tecnologias, desarrollo, configuracion y operacion
 
-**Version:** 1.0  
-**Fecha:** agosto de 2026  
-**Producto:** ERP omnicanal, CRM y agente comercial  
-**Framework de agentes:** Google ADK  
+**Version:** 1.0
+**Fecha:** agosto de 2026
+**Producto:** ERP omnicanal, CRM y agente comercial
+**Framework de agentes:** Google ADK
 **Documento:** Guia tecnica para desarrolladores y replicacion por cliente
 
 ---
