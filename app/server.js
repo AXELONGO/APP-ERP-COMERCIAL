@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
+require('dotenv').config({ path: path.join(__dirname, '../config.env') });
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
