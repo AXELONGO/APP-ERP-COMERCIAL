@@ -138,8 +138,15 @@ async function resolveWebhookWorkspace(event, req) {
 }
 
 async function syncWahaHistory(workspaceId, config) {
-  const chats = await getChats(config.session, config, { limit: 100 });
-  const rows = Array.isArray(chats) ? chats : [];
+  const rows = [];
+  let offset = 0;
+  while (true) {
+    const page = await getChats(config.session, config, { limit: 100, offset });
+    const items = Array.isArray(page) ? page : [];
+    rows.push(...items);
+    if (items.length < 100) break;
+    offset += items.length;
+  }
   let imported = 0;
   for (const chat of rows) {
     const chatId = chat.id || chat.chatId;
