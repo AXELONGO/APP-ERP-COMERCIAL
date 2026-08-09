@@ -5,6 +5,7 @@ const {
   getSession,
   getChats,
   getChatMessages,
+  getAllMessages,
   getLidPhone,
   getContact,
   getLids,
@@ -201,24 +202,25 @@ async function syncWahaHistory(workspaceId, config) {
 
 async function syncWahaRecent(workspaceId, config) {
   const identities = await loadWahaIdentities(config);
-  const chats = await getChats(config.session, config, { limit: 25, offset: 0 });
-  const rows = Array.isArray(chats) ? chats : [];
+  const messages = await getAllMessages(config.session, config, { limit: 1000, offset: 0 });
+  const rows = Array.isArray(messages) ? messages : [];
+  const chatIds = new Set();
+  const contactCache = new Map();
   let imported = 0;
-  for (const chat of rows) {
-    const chatId = chat.id || chat.chatId;
+  for (const payload of rows) {
+    const chatId = payload.fromMe && payload.to && payload.to !== 'me' ? payload.to : payload.from;
     if (!chatId || chatId === 'status@broadcast') continue;
-    const contact = String(chatId).endsWith('@lid') ? await getContact(config.session, chatId, config).catch(() => null) : null;
+    chatIds.add(chatId);
+    if (String(chatId).endsWith('@lid') && !contactCache.has(chatId)) contactCache.set(chatId, await getContact(config.session, chatId, config).catch(() => null));
+    const contact = contactCache.get(chatId) || null;
     const identity = identities.get(chatId) || {};
     const mappedPhone = identity.phone || (contact?.number ? `${contact.number}@c.us` : contact?.id || chatId);
     const chatPhone = phoneFromChatId(mappedPhone);
-    const chatName = chat.name || chat._chat?.name || chat._chat?.formattedName || contact?.name || contact?.pushname || contact?.shortName || identity.name || chatPhone;
-    const messages = await getChatMessages(config.session, chatId, config, { limit: 25, offset: 0 });
-    for (const payload of Array.isArray(messages) ? messages : []) {
-      if (await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload, chatName, chatPhone })) imported += 1;
-    }
+    const chatName = contact?.name || contact?.pushname || contact?.shortName || identity.name || chatPhone;
+    if (await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload, chatName, chatPhone })) imported += 1;
   }
   await normalizeWahaConversationTimes(workspaceId);
-  return { chats: rows.length, messages: imported };
+  return { chats: chatIds.size, messages: imported };
 }
 
 async function loadWahaIdentities(config) {

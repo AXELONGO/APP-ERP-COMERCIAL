@@ -65,6 +65,10 @@ async function getChatMessages(session, chatId, wahaConfig = {}, { limit = 100, 
   return requestWaha(`${chatPath(session, chatId)}/messages?limit=${limit}&offset=${offset}&downloadMedia=false`, { wahaConfig });
 }
 
+async function getAllMessages(session, wahaConfig = {}, { limit = 1000, offset = 0 } = {}) {
+  return requestWaha(`/api/messages?chatId=all&session=${encodeURIComponent(session)}&limit=${limit}&offset=${offset}&downloadMedia=false`, { wahaConfig });
+}
+
 async function getLidPhone(session, lid, wahaConfig = {}) {
   return requestWaha(`/api/${encodeURIComponent(session)}/lids/${encodeURIComponent(lid)}`, { wahaConfig });
 }
@@ -132,6 +136,7 @@ module.exports = {
   getSession,
   getChats,
   getChatMessages,
+  getAllMessages,
   getLidPhone,
   getContact,
   getLids,
