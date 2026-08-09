@@ -523,16 +523,29 @@ async function loadIntegrations() {
   }
 }
 
+const integrationUiFields = {
+  waha: [['baseUrl', 'URL de WAHA', false], ['apiKey', 'API key', true], ['session', 'Sesión', false], ['webhookUrl', 'URL pública del webhook', false], ['webhookSecret', 'Secreto del webhook', true]],
+  google_calendar: [['clientId', 'Client ID', false], ['clientSecret', 'Client secret', true], ['refreshToken', 'Refresh token', true], ['calendarId', 'Calendar ID', false]],
+  gmail: [['clientId', 'Client ID', false], ['clientSecret', 'Client secret', true], ['refreshToken', 'Refresh token', true], ['fromAddress', 'Correo remitente', false]],
+  google_drive: [['clientId', 'Client ID', false], ['clientSecret', 'Client secret', true], ['refreshToken', 'Refresh token', true], ['folderId', 'Folder ID', false]],
+  google_sheets: [['credentialsJson', 'Credenciales JSON', true], ['spreadsheetId', 'Spreadsheet ID', false]],
+  shopify: [['storeUrl', 'URL de la tienda', false], ['accessToken', 'Access token', true], ['apiVersion', 'API version', false]]
+};
+
+function renderIntegrationConfigModal(provider, integration) {
+  const fields = integration.fields || [];
+  const body = `<form onsubmit="saveIntegrationConfig(event, '${provider}')"><div class="integration-form-intro"><span class="integration-form-icon"><i class="ph ph-plugs-connected"></i></span><div><strong>${escapeDetailHtml(integration.label)}</strong><p>Guarda las variables de este workspace. Los secretos existentes se conservan si dejas el campo vacío.</p></div></div><div class="form-grid integration-form-grid">${fields.map(field => `<div class="form-group ${field.key === 'credentialsJson' ? 'full-width' : ''}"><label>${escapeDetailHtml(field.label)} ${field.secret && field.hasValue ? '<small class="secret-saved">Guardado</small>' : ''}</label>${field.key === 'credentialsJson' ? `<textarea name="${field.key}" rows="8" placeholder="Pega aquí el JSON de credenciales">${escapeDetailHtml(field.value || '')}</textarea>` : `<input name="${field.key}" type="${field.secret ? 'password' : 'text'}" value="${escapeDetailHtml(field.value || '')}" placeholder="${field.secret && field.hasValue ? 'Dejar vacío para conservarlo' : ''}" autocomplete="new-password">`}</div>`).join('')}</div><label class="integration-enabled"><input type="checkbox" name="enabled" ${integration.enabled ? 'checked' : ''}> Activar esta integración</label><div class="integration-form-actions"><button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar y probar</button></div></form>`;
+  openModal(`Configurar ${integration.label}`, body);
+}
+
 async function openIntegrationConfig(provider) {
   try {
     const result = await v2Fetch(`/api/v2/integrations/${encodeURIComponent(provider)}`);
-    const integration = result.data;
-    const fields = integration.fields || [];
-    const body = `<form onsubmit="saveIntegrationConfig(event, '${provider}')"><div class="integration-form-intro"><span class="integration-form-icon"><i class="ph ph-plugs-connected"></i></span><div><strong>${escapeDetailHtml(integration.label)}</strong><p>Guarda las variables de este workspace. Los secretos existentes se conservan si dejas el campo vacío.</p></div></div><div class="form-grid integration-form-grid">${fields.map(field => `<div class="form-group ${field.key === 'credentialsJson' ? 'full-width' : ''}"><label>${escapeDetailHtml(field.label)} ${field.secret && field.hasValue ? '<small class="secret-saved">Guardado</small>' : ''}</label>${field.key === 'credentialsJson' ? `<textarea name="${field.key}" rows="8" placeholder="Pega aquí el JSON de credenciales">${escapeDetailHtml(field.value || '')}</textarea>` : `<input name="${field.key}" type="${field.secret ? 'password' : 'text'}" value="${escapeDetailHtml(field.value || '')}" placeholder="${field.secret && field.hasValue ? 'Dejar vacío para conservarlo' : ''}" autocomplete="new-password">`}</div>`).join('')}</div><label class="integration-enabled"><input type="checkbox" name="enabled" ${integration.enabled ? 'checked' : ''}> Activar esta integración</label><div class="integration-form-actions"><button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar y probar</button></div></form>`;
-    openModal(`Configurar ${integration.label}`, body);
+    renderIntegrationConfigModal(provider, result.data);
   } catch (error) {
-    if (error.status === 401) return loginV2();
-    showToast(error.message, true);
+    const fallback = { label: provider.replace(/_/g, ' '), enabled: false, fields: integrationUiFields[provider].map(([key, label, secret]) => ({ key, label, secret, value: '', hasValue: false })) };
+    renderIntegrationConfigModal(provider, fallback);
+    if (error.status !== 401) showToast(`Formulario abierto; no se cargaron valores guardados: ${error.message}`, true);
   }
 }
 
@@ -553,7 +566,7 @@ async function saveIntegrationConfig(event, provider) {
     }
     closeModal();
     loadIntegrations();
-  } catch (error) { showToast(error.message, true); }
+  } catch (error) { if (error.status === 401) { showToast('Inicia sesión del CRM para guardar la configuración.', true); loginV2(); } else showToast(error.message, true); }
   finally { button.disabled = false; }
 }
 
