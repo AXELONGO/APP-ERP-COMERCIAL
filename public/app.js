@@ -1664,7 +1664,7 @@ function formPipeline() {
       <div class="form-group"><label>Fecha Fin</label><input name="fechaFin" type="date"></div>
       <div class="form-group"><label>Estado</label>
         <select name="estado"><option>En Proceso</option><option>Completado</option><option>Bloqueado</option></select></div>
-      <div class="form-group full"><label>Comentarios</label><input name="comentarios"></div>
+       <div class="form-group full"><label>Comentarios</label><input name="comentarios"></div>
     </div>
     <button type="submit" class="btn btn-primary btn-block">Guardar Etapa</button>
   </form>`;
@@ -1704,7 +1704,7 @@ function formTarea() {
       <div class="form-group"><label>Fecha Límite</label><input name="fechaLimite" type="date"></div>
       <div class="form-group"><label>Estado</label>
         <select name="estado">${pipelineStageOptions('tareas')}</select></div>
-      <div class="form-group full"><label>Comentarios</label><input name="comentarios"></div>
+       <div class="form-group full"><label>Notas internas</label><textarea name="comentarios" rows="3" placeholder="Agrega contexto o instrucciones para el equipo"></textarea></div>
     </div>
     <button type="submit" class="btn btn-primary btn-block">Guardar Tarea</button>
   </form>`;
@@ -1979,9 +1979,12 @@ function viewRecord(endpoint, id) {
   window.aiCommunicationContext = { module: endpoint, recordId: id };
 
   const fields = getDetailFields(record);
-  const titleField = fields[0];
+  const isTaskRecord = endpoint === 'tareas';
+  const taskFieldLabels = new Set(['Nombre de la tarea', 'Asesor', 'Estado', 'Prioridad', 'Fecha de registro']);
+  const visibleFields = isTaskRecord ? fields.filter(field => taskFieldLabels.has(field.label)) : fields;
+  const titleField = fields.find(field => field.label === (isTaskRecord ? 'Nombre de la tarea' : field.label)) || fields[0];
   const nameForTitle = titleField?.value || id;
-  const fieldHtml = fields.map((field, index) => {
+  const fieldHtml = visibleFields.map((field, index) => {
     const value = String(field.value || '').trim();
     const encoded = [endpoint, id, field.key, value].map(encodeURIComponent);
     const isWide = ['Descripción', 'Notas'].includes(field.label);
@@ -1996,12 +1999,15 @@ function viewRecord(endpoint, id) {
   }).join('');
   const safeEndpoint = encodeURIComponent(endpoint);
   const safeId = encodeURIComponent(id);
-  const html = `<div class="record-detail-view">
+  const taskNote = isTaskRecord ? (record['Comentarios'] || record['Notas'] || '') : '';
+  const taskNotesHtml = isTaskRecord ? `<section class="internal-notes-panel"><div class="internal-notes-heading"><div><i class="ph ph-note-pencil"></i><strong>Notas internas</strong></div><span>Solo visible para el equipo</span></div><div class="internal-notes-list">${taskNote ? `<article class="internal-note-card"><p>${escapeDetailHtml(taskNote).replace(/\n/g, '<br>')}</p><button class="internal-note-edit" onclick="openTaskNoteForm('${encodeURIComponent(endpoint)}','${encodeURIComponent(id)}','${encodeURIComponent(taskNote)}')"><i class="ph ph-pencil-simple"></i></button></article>` : ''}<button class="internal-note-add" onclick="openTaskNoteForm('${encodeURIComponent(endpoint)}','${encodeURIComponent(id)}','')"><i class="ph ph-plus"></i><span>${taskNote ? 'Agregar otra nota' : 'Agregar nota'}</span></button></div></section>` : '';
+  const html = `<div class="record-detail-view ${isTaskRecord ? 'task-record-detail' : ''}">
     <div class="record-detail-hero">
       <div class="record-detail-icon"><i class="ph ph-sparkle"></i></div>
       <div><span class="record-detail-kicker">Ficha resumida</span><h2>${escapeDetailHtml(nameForTitle)}</h2></div>
     </div>
     <div class="record-details-grid">${fieldHtml || '<p class="detail-field-empty">No hay información relevante para mostrar.</p>'}</div>
+    ${taskNotesHtml}
     <div class="record-detail-actions">
       <button class="btn btn-outline detail-delete-button" onclick="if(confirm('¿Estás seguro de eliminar este registro?')) { deleteRecord(decodeURIComponent('${safeEndpoint}'), decodeURIComponent('${safeId}')); closeModal(); }">
         <i class="ph ph-trash"></i> Eliminar registro
@@ -2010,6 +2016,30 @@ function viewRecord(endpoint, id) {
   </div>`;
 
   openModal(`Detalles: ${nameForTitle}`, html);
+}
+
+function openTaskNoteForm(endpoint, id, note) {
+  openModal('Notas internas', `<form onsubmit="saveTaskNote(event, '${endpoint}', '${id}')"><p class="text-muted" style="margin-bottom:14px;">Las notas solo las verá tu equipo dentro del CRM.</p><div class="form-group"><label>Nota</label><textarea name="note" rows="7" required>${escapeDetailHtml(decodeURIComponent(note || ''))}</textarea></div><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;"><button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar nota</button></div></form>`);
+}
+
+async function saveTaskNote(event, encodedEndpoint, encodedId) {
+  event.preventDefault();
+  const endpoint = decodeURIComponent(encodedEndpoint);
+  const id = decodeURIComponent(encodedId);
+  const note = new FormData(event.target).get('note')?.toString().trim() || '';
+  const button = event.target.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    const response = await fetch(`${API}/api/${endpoint}/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comentarios: note }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success === false) throw new Error(result.error || 'No se pudo guardar la nota');
+    const record = (window.tareasData || []).find(item => Object.values(item).includes(id));
+    if (record) record.Comentarios = note;
+    closeModal();
+    viewRecord(endpoint, id);
+    showToast('<i class="ph-fill ph-check-circle" style="color:#10b981"></i> Nota guardada');
+  } catch (error) { showToast(error.message, true); }
+  finally { button.disabled = false; }
 }
 
 function makeEditable(el, endpoint, id, sheetKey, originalVal) {
