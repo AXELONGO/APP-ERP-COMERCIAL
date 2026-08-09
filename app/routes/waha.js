@@ -125,6 +125,22 @@ async function persistMessageForWorkspace(workspaceId, chatId, payload, chatName
   }
 }
 
+async function normalizeWahaConversationTimes(workspaceId) {
+  await query(
+    `UPDATE conversations c
+     SET last_activity_at = latest.created_at,
+         updated_at = GREATEST(c.updated_at, latest.created_at)
+     FROM (
+       SELECT conversation_id, MAX(created_at) AS created_at
+       FROM messages
+       WHERE workspace_id = $1 AND channel = 'whatsapp'
+       GROUP BY conversation_id
+     ) latest
+     WHERE c.id = latest.conversation_id AND c.workspace_id = $1`,
+    [workspaceId]
+  );
+}
+
 async function persistWahaAck(workspaceId, payload) {
   const ack = Number(payload?.ack);
   const deliveryStatus = ack >= 3 ? 'read' : ack === 2 ? 'delivered' : ack >= 1 ? 'sent' : null;
@@ -177,6 +193,7 @@ async function syncWahaHistory(workspaceId, config) {
       if (conversationId) imported += 1;
     }
   }
+  await normalizeWahaConversationTimes(workspaceId);
   return { chats: rows.length, messages: imported };
 }
 
@@ -195,6 +212,7 @@ async function syncWahaRecent(workspaceId, config) {
       if (await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload, chatName, chatPhone })) imported += 1;
     }
   }
+  await normalizeWahaConversationTimes(workspaceId);
   return { chats: rows.length, messages: imported };
 }
 
