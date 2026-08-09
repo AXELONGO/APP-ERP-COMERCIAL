@@ -11,7 +11,8 @@
     "test:pipeline": "node scripts/test/test_pipeline_validation.js",
     "test:communication": "node scripts/test/test_communication_agent.js",
     "migrate:pipelines": "node scripts/migrations/migrate_dynamic_pipelines.js",
-    "test": "npm run test:communication && npm run test:pipeline"
+    "test:v2": "node scripts/test/test_v2_core.js",
+    "test": "npm run test:communication && npm run test:pipeline && npm run test:v2"
   },
   "keywords": [],
   "author": "",

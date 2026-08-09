@@ -90,3 +90,61 @@ CREATE TABLE IF NOT EXISTS audit_events (
 
 CREATE INDEX IF NOT EXISTS audit_events_workspace_created_idx
   ON audit_events (workspace_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS pipeline_stages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  slug text NOT NULL,
+  color text NOT NULL DEFAULT '#64748b',
+  position integer NOT NULL DEFAULT 0,
+  max_days integer,
+  requirements jsonb NOT NULL DEFAULT '{}'::jsonb,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, slug)
+);
+
+CREATE TABLE IF NOT EXISTS stage_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  from_stage text,
+  to_stage text NOT NULL,
+  changed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS stage_history_workspace_created_idx
+  ON stage_history (workspace_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS appointments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  contact_id uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  assigned_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  appointment_type text NOT NULL,
+  starts_at timestamptz NOT NULL,
+  ends_at timestamptz NOT NULL,
+  timezone text NOT NULL,
+  location text,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','confirmed','rescheduled','attended','no_show','cancelled')),
+  provider text NOT NULL DEFAULT 'internal',
+  provider_event_id text,
+  idempotency_key text,
+  notes text,
+  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (ends_at > starts_at)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS appointments_workspace_idempotency_unique
+  ON appointments (workspace_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS appointments_provider_event_unique
+  ON appointments (workspace_id, provider, provider_event_id) WHERE provider_event_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS appointments_workspace_starts_idx
+  ON appointments (workspace_id, starts_at);
