@@ -286,6 +286,7 @@ function registerQuoteRoutes(app) {
       validateForSend(body, calculated);
       channel = body.send_channel || req.body?.send_channel || 'link';
       console.info('[QUOTE SEND] solicitud recibida', { workspaceId: req.workspaceId, quoteId: existing.id, channel, contactId: existing.contact_id });
+      if (channel !== 'whatsapp') throw badRequest('Selecciona "PDF por WhatsApp" como canal de envío antes de enviar la cotización.');
       if (channel === 'whatsapp') {
         if (!existing.phone_e164) throw badRequest('El contacto no tiene teléfono para WhatsApp');
         const waha = await getIntegrationConfig(req.workspaceId, 'waha');
