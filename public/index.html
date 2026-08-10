@@ -97,10 +97,6 @@
       <span class="nav-icon"><i class="ph ph-wallet"></i></span><span>Cobranza</span>
     </a>
 
-    <div class="nav-section-label">INTELIGENCIA</div>
-    <a href="#" class="nav-item" data-section="analiticas" id="nav-analiticas">
-      <span class="nav-icon"><i class="ph ph-chart-line-up"></i></span><span>Analíticas</span>
-    </a>
     <a href="#" class="nav-item" data-section="integraciones" id="nav-integraciones">
       <span class="nav-icon"><i class="ph ph-plugs-connected"></i></span><span>Integraciones</span>
     </a>
@@ -338,12 +334,6 @@
     <div class="waha-connection-bar"><div class="waha-connection-copy"><span class="status-dot status-dot-muted" id="wahaStatusDot"></span><strong id="wahaStatusText">Comprobando conexión WAHA...</strong><small id="wahaStatusDetail">La bandeja se sincroniza con PostgreSQL y recibe eventos por webhook.</small></div><div class="waha-connection-actions"><button class="btn btn-outline" id="wahaLoginButton" onclick="loginV2()" style="display:none;"><i class="ph ph-sign-in"></i> Iniciar sesión</button><button class="btn btn-outline" id="wahaQrButton" onclick="showWahaQr()" style="display:none;"><i class="ph ph-qr-code"></i> Mostrar QR</button><button class="btn btn-primary" id="wahaStartButton" onclick="startWahaSession()" style="display:none;"><i class="ph ph-plug"></i> Conectar WhatsApp</button></div></div>
     <div class="chat-toolbar"><div class="chat-search"><i class="ph ph-magnifying-glass"></i><input id="wahaSearch" placeholder="Buscar por nombre, correo o teléfono..." oninput="renderWahaConversations()"></div><button class="filter-pill" onclick="setWahaFilter('all')">Todos <i class="ph ph-caret-down"></i></button><button class="filter-pill" onclick="setWahaFilter('open')">Abiertos <i class="ph ph-caret-down"></i></button><button class="btn btn-outline" onclick="syncWahaHistory()"><i class="ph ph-download-simple"></i> Importar historial</button><button class="btn btn-dark" onclick="refreshWahaChats()"><i class="ph ph-arrows-clockwise"></i> Actualizar</button></div>
     <div class="inbox-layout"><aside class="inbox-list"><div class="inbox-list-head"><strong>Conversaciones</strong><span class="soft-badge gray" id="wahaConversationCount">0</span></div><div id="wahaConversationList" class="waha-conversation-list"><div class="inbox-empty"><i class="ph ph-chat-circle-dots"></i><span>No se encontraron chats</span><small>Los mensajes de WAHA aparecerán aquí.</small></div></div></aside><main class="conversation-panel"><div class="conversation-thread hidden" id="wahaThread"><div class="conversation-thread-head"><div><strong id="wahaThreadName">Conversación</strong><small id="wahaThreadPhone"></small></div><span class="soft-badge purple">WhatsApp</span></div><div class="waha-messages" id="wahaMessages"></div><form class="waha-composer" onsubmit="sendWahaMessage(event)"><input type="file" id="wahaFileInput" hidden onchange="sendWahaFile(event)" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"><button class="btn btn-outline" type="button" onclick="document.getElementById('wahaFileInput').click()" title="Adjuntar archivo"><i class="ph ph-paperclip"></i></button><textarea id="wahaMessageInput" rows="1" placeholder="Escribe un mensaje..." required></textarea><button class="btn btn-primary" type="submit"><i class="ph ph-paper-plane-tilt"></i></button></form></div><div class="conversation-placeholder" id="wahaThreadEmpty"><i class="ph ph-chat-centered-text"></i><h3>Selecciona una conversación</h3><p>Consulta mensajes y responde directamente desde WAHA.</p></div></main><aside class="conversation-details"><div class="details-placeholder" id="wahaContactDetails"><i class="ph ph-user-circle"></i><span>Detalles del contacto</span><small>Selecciona un chat para ver su recorrido.</small></div></aside></div>
-  </section>
-
-  <!-- ── ANALÍTICAS ─────────────────────────────────────────── -->
-  <section class="section hidden" id="section-analiticas">
-    <div class="section-heading-row"><div><span class="eyebrow">INTELIGENCIA</span><h2 class="workspace-heading">Analíticas</h2><p class="workspace-copy">Mide atención automática, conversiones y desempeño comercial.</p></div><select class="select-control period-select"><option>Últimos 7 días</option><option>Este mes</option><option>Histórico</option></select></div>
-    <div class="analytics-kpis"><div class="workspace-card analytics-kpi"><span>Total de chats</span><strong>0</strong><small>Sin datos todavía</small></div><div class="workspace-card analytics-kpi"><span>Respuesta de IA</span><strong>0%</strong><small>Objetivo: 80%</small></div><div class="workspace-card analytics-kpi"><span>Tasa de escalación</span><strong>0%</strong><small>Sin datos todavía</small></div><div class="workspace-card analytics-kpi"><span>Latencia de IA</span><strong>0ms</strong><small>Sin datos todavía</small></div></div><div class="analytics-grid"><div class="workspace-card analytics-placeholder"><div class="card-heading"><h3>Conversaciones por etapa</h3><button class="icon-button"><i class="ph ph-download-simple"></i></button></div><div class="fake-bars"><span style="height:26%"></span><span style="height:45%"></span><span style="height:34%"></span><span style="height:62%"></span><span style="height:48%"></span><span style="height:76%"></span></div></div><div class="workspace-card analytics-placeholder"><div class="card-heading"><h3>Citas y conversiones</h3><button class="icon-button"><i class="ph ph-dots-three"></i></button></div><div class="analytics-empty"><i class="ph ph-chart-line-up"></i><span>Los eventos históricos generarán esta vista.</span></div></div></div>
   </section>
 
   <!-- ── INTEGRACIONES ──────────────────────────────────────── -->
@@ -905,6 +895,6 @@
 </style>
 
 <script src="webhooks.js?v=4"></script>
-<script src="app.js?v=18"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>
