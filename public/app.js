@@ -2808,6 +2808,7 @@ let contactPanelDirty = false;
 async function openContactPanel(contactId) {
   try {
     const result = await v2Fetch(`/api/v2/contacts/${encodeURIComponent(contactId)}/profile`);
+    await loadPipelineConfig('prospectos');
     contactPanelData = result.data;
     contactPanelDirty = false;
     const panel = document.getElementById('contactPanel');
@@ -2815,9 +2816,21 @@ async function openContactPanel(contactId) {
     document.getElementById('contactPanelOverlay').classList.remove('hidden');
     document.body.classList.add('contact-panel-open');
     renderContactPanel();
+    const stageSelect = document.getElementById('contactPanel').querySelector('[name="panel_pipeline_stage"]');
+    if (stageSelect) stageSelect.innerHTML = contactPipelineStageOptions(contactPanelData.contact.pipeline_stage);
     document.getElementById('contactPanel').querySelectorAll('input,select').forEach(input => { input.addEventListener('input', () => { contactPanelDirty = true; }); input.addEventListener('change', () => { contactPanelDirty = true; }); });
     if (!window.contactPanelEscapeBound) { document.addEventListener('keydown', event => { if (event.key === 'Escape') closeContactPanel(); }); window.contactPanelEscapeBound = true; }
   } catch (error) { if (error.status === 401) loginV2(); else showToast(error.message, true); }
+}
+
+function contactPipelineStageOptions(value) {
+  const pipeline = window.pipelineConfigs.prospectos || legacyPipelineFallback('prospectos');
+  const stages = (pipeline.stages || []).filter(stage => stage.active !== false).sort((a, b) => a.order_index - b.order_index);
+  const selected = stages.find(stage => [stage.legacy_value, stage.stage_key, stage.name].map(String).includes(String(value))) || stages.find(stage => stage.is_initial) || stages[0];
+  return stages.map(stage => {
+    const optionValue = stage.legacy_value || stage.stage_key || stage.name;
+    return `<option value="${escapeDetailHtml(optionValue)}" ${stage.stage_id === selected?.stage_id ? 'selected' : ''}>${escapeDetailHtml(stage.name)}</option>`;
+  }).join('');
 }
 
 async function openLegacyContactPanel(phone, name) {
