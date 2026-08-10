@@ -28,6 +28,15 @@ const INTEGRATION_DEFINITIONS = {
   shopify: {
     label: 'Shopify',
     fields: [['storeUrl', 'URL de la tienda', false], ['accessToken', 'Access token', true], ['apiVersion', 'API version', false]]
+  },
+  meta: {
+    label: 'Meta Business · Messenger e Instagram',
+    fields: [
+      ['appId', 'Meta App ID', false], ['appSecret', 'Meta App Secret', true], ['redirectUri', 'URL de callback OAuth', false],
+      ['webhookUrl', 'URL pública del webhook', false], ['verifyToken', 'Token de verificación', true],
+      ['userAccessToken', 'User access token', true], ['pageId', 'Facebook Page ID', false], ['pageName', 'Facebook Page', false],
+      ['pageAccessToken', 'Page access token', true], ['instagramAccountId', 'Instagram Professional ID', false], ['instagramAccessToken', 'Instagram access token', true]
+    ]
   }
 };
 

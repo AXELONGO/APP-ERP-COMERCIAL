@@ -518,6 +518,8 @@ async function selectWahaConversation(id) {
   document.getElementById('wahaThreadName').onclick = () => activeWahaConversation.contact_id && openContactPanel(activeWahaConversation.contact_id);
   document.getElementById('wahaThreadName').classList.add('contact-name-link');
   document.getElementById('wahaThreadPhone').textContent = activeWahaConversation.phone_e164 || '';
+  const channelLabel = activeWahaConversation.channel === 'instagram' ? 'Instagram' : activeWahaConversation.channel === 'messenger' ? 'Messenger' : 'WhatsApp';
+  document.querySelector('#wahaThread .soft-badge')?.replaceChildren(document.createTextNode(channelLabel));
   const prospect = wahaProspect(activeWahaConversation);
   document.getElementById('wahaContactDetails').innerHTML = `<i class="ph ph-user-circle"></i><strong>${escapeWahaHtml(prospect?.['Nombre del Contacto'] || wahaDisplayName(activeWahaConversation))}</strong><small>${escapeWahaHtml(prospect?.['Teléfono'] || activeWahaConversation.phone_e164 || '')}${prospect?.['Correo Electrónico'] ? ` · ${escapeWahaHtml(prospect['Correo Electrónico'])}` : ''}</small><span class="soft-badge gray">Etapa: ${escapeWahaHtml(prospect?.['Etapa'] || activeWahaConversation.pipeline_stage || 'new')}</span>${prospect ? `<small class="waha-prospect-match"><i class="ph ph-check-circle"></i> Prospecto ${escapeWahaHtml(prospect['ID Prospectos'] || '')} relacionado</small>` : ''}<button class="btn btn-outline btn-small waha-contact-profile-button" onclick="openWahaContactProfile()"><i class="ph ph-address-book"></i> Ver ficha y notas</button>`;
   try {
@@ -552,7 +554,8 @@ async function sendWahaMessage(event) {
   const button = event.submitter;
   button.disabled = true;
   try {
-    await v2Fetch('/api/v2/waha/send', { method: 'POST', body: JSON.stringify({ conversation_id: activeWahaConversation.id, body }) });
+    const endpoint = ['messenger', 'instagram'].includes(activeWahaConversation.channel) ? '/api/v2/meta/send' : '/api/v2/waha/send';
+    await v2Fetch(endpoint, { method: 'POST', body: JSON.stringify({ conversation_id: activeWahaConversation.id, body }) });
     input.value = '';
     await selectWahaConversation(activeWahaConversation.id);
   } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
@@ -563,6 +566,7 @@ async function sendWahaFile(event) {
   const input = event.target;
   const file = input.files?.[0];
   if (!file || !activeWahaConversation) return;
+  if (['messenger', 'instagram'].includes(activeWahaConversation.channel)) { input.value = ''; return showToast('Los archivos de Meta todavía no están habilitados desde este chat', true); }
   if (file.size > 10 * 1024 * 1024) { input.value = ''; return showToast('El archivo no puede superar 10 MB', true); }
   const data = await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -600,6 +604,8 @@ async function loadIntegrations() {
   try {
     const result = await v2Fetch('/api/v2/integrations');
     window.integrationConfigs = Object.fromEntries((result.data || []).map(item => [item.provider, item]));
+    const grid = document.querySelector('.integration-grid');
+    if (grid && !grid.querySelector('[data-provider="meta"]')) grid.insertAdjacentHTML('beforeend', '<article class="workspace-card integration-card" data-provider="meta"><div class="integration-icon meta"><i class="ph ph-meta-logo"></i></div><div><h3>Meta Business</h3><p>Messenger e Instagram en la bandeja compartida.</p></div><button class="btn btn-outline" onclick="openIntegrationConfig(\'meta\')">Configurar</button></article>');
   } catch (error) {
     if (error.status === 401) showToast('Inicia sesión en el CRM para configurar integraciones.', true);
   }
@@ -611,14 +617,18 @@ const integrationUiFields = {
   gmail: [['clientId', 'Client ID', false], ['clientSecret', 'Client secret', true], ['refreshToken', 'Refresh token', true], ['fromAddress', 'Correo remitente', false]],
   google_drive: [['clientId', 'Client ID', false], ['clientSecret', 'Client secret', true], ['refreshToken', 'Refresh token', true], ['folderId', 'Folder ID', false]],
   google_sheets: [['credentialsJson', 'Credenciales JSON', true], ['spreadsheetId', 'Spreadsheet ID', false]],
-  shopify: [['storeUrl', 'URL de la tienda', false], ['accessToken', 'Access token', true], ['apiVersion', 'API version', false]]
+  shopify: [['storeUrl', 'URL de la tienda', false], ['accessToken', 'Access token', true], ['apiVersion', 'API version', false]],
+  meta: [['appId', 'Meta App ID', false], ['appSecret', 'Meta App Secret', true], ['redirectUri', 'URL de callback OAuth', false], ['webhookUrl', 'URL pública del webhook', false], ['verifyToken', 'Token de verificación', true], ['userAccessToken', 'User access token', true], ['pageId', 'Facebook Page ID', false], ['pageName', 'Facebook Page', false], ['pageAccessToken', 'Page access token', true], ['instagramAccountId', 'Instagram Professional ID', false], ['instagramAccessToken', 'Instagram access token', true]]
 };
 
 function renderIntegrationConfigModal(provider, integration) {
   const fields = integration.fields || [];
   const body = `<form onsubmit="saveIntegrationConfig(event, '${provider}')"><div class="integration-form-intro"><span class="integration-form-icon"><i class="ph ph-plugs-connected"></i></span><div><strong>${escapeDetailHtml(integration.label)}</strong><p>Guarda las variables de este workspace. Los secretos existentes se conservan si dejas el campo vacío.</p></div></div><div class="form-grid integration-form-grid">${fields.map(field => `<div class="form-group ${field.key === 'credentialsJson' ? 'full-width' : ''}"><label>${escapeDetailHtml(field.label)} ${field.secret && field.hasValue ? '<small class="secret-saved">Guardado</small>' : ''}</label>${field.key === 'credentialsJson' ? `<textarea name="${field.key}" rows="8" placeholder="Pega aquí el JSON de credenciales">${escapeDetailHtml(field.value || '')}</textarea>` : `<input name="${field.key}" type="${field.secret ? 'password' : 'text'}" value="${escapeDetailHtml(field.value || '')}" placeholder="${field.secret && field.hasValue ? 'Dejar vacío para conservarlo' : ''}" autocomplete="new-password">`}</div>`).join('')}</div><label class="integration-enabled"><input type="checkbox" name="enabled" ${integration.enabled ? 'checked' : ''}> Activar esta integración</label><div class="integration-form-actions"><button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button><button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar y probar</button></div></form>`;
   openModal(`Configurar ${integration.label}`, body);
+  if (provider === 'meta') document.querySelector('#modalBody .integration-form-actions')?.insertAdjacentHTML('afterbegin', '<button type="button" class="btn btn-outline" onclick="connectMeta()"><i class="ph ph-meta-logo"></i> Conectar con Meta</button>');
 }
+
+async function connectMeta() { try { const result = await v2Fetch('/api/v2/meta/oauth-url'); window.location.href = result.url; } catch (error) { showToast(error.message, true); } }
 
 async function openIntegrationConfig(provider) {
   try {

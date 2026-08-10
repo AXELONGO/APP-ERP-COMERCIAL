@@ -24,6 +24,7 @@ const { registerV2SalesRoutes } = require('./routes/v2Sales');
 const { registerWahaRoutes } = require('./routes/waha');
 const { registerIntegrationRoutes } = require('./routes/integrations');
 const { registerQuoteRoutes } = require('./routes/quotes');
+const { registerMetaRoutes } = require('./routes/meta');
 const { ensureV2Bootstrap } = require('./services/v2Bootstrap');
 const { seedLegacyPipelines } = require('./services/pipelineService');
 const { ensureProspectosGiroColumn } = require('./services/legacySchemaService');
@@ -80,7 +81,7 @@ app.use(limiter);
 
 const corsOrigins = String(process.env.CORS_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
 app.use(cors(corsOrigins.length ? { origin: corsOrigins } : { origin: false }));
-app.use(express.json({ limit: '50mb' }));
+ app.use(express.json({ limit: '50mb', verify: (req, res, buffer) => { req.rawBody = Buffer.from(buffer); } }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(fileUpload({
   limits: { fileSize: 50 * 1024 * 1024 },
@@ -149,6 +150,7 @@ registerV2SalesRoutes(app);
 registerWahaRoutes(app);
 registerIntegrationRoutes(app);
 registerQuoteRoutes(app);
+registerMetaRoutes(app);
 
 // ── Google Drive OAuth ──────────────────────────────────────
 app.get('/api/auth/google', (req, res) => {

@@ -16,10 +16,10 @@ El apartado **Chats** usa WAHA como transporte y PostgreSQL como historial del C
 WAHA_BASE_URL=http://localhost:3001
 WAHA_API_KEY=
 WAHA_SESSION=default
-WAHA_WEBHOOK_URL=https://ivory-worm-205678.hostingersite.com/api/v2/waha/webhook
+WAHA_WEBHOOK_URL=https://chatbot-erp.or7bqd.easypanel.host/api/v2/waha/webhook
 WAHA_WEBHOOK_SECRET=secreto-largo
 WAHA_WORKSPACE_ID=uuid-del-workspace
-PUBLIC_BASE_URL=https://ivory-worm-205678.hostingersite.com
+PUBLIC_BASE_URL=https://chatbot-erp.or7bqd.easypanel.host
 ```
 
 `WAHA_WORKSPACE_ID` vincula la sesion a un workspace del ERP. En una instalacion multiempresa, se debe usar una sesion y webhook por workspace o evolucionar esta variable a configuracion persistida por workspace.

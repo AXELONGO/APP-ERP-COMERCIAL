@@ -95,6 +95,22 @@ CREATE TABLE IF NOT EXISTS audit_events (
 CREATE INDEX IF NOT EXISTS audit_events_workspace_created_idx
   ON audit_events (workspace_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS meta_webhook_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  provider text NOT NULL,
+  external_event_id text NOT NULL,
+  payload_hash text NOT NULL,
+  status text NOT NULL DEFAULT 'received',
+  error text,
+  received_at timestamptz NOT NULL DEFAULT now(),
+  processed_at timestamptz,
+  UNIQUE (workspace_id, provider, external_event_id)
+);
+
+CREATE INDEX IF NOT EXISTS meta_webhook_events_workspace_received_idx
+  ON meta_webhook_events (workspace_id, received_at DESC);
+
 CREATE TABLE IF NOT EXISTS pipeline_stages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
