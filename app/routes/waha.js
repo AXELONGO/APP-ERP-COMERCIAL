@@ -64,6 +64,27 @@ async function ensureConversation(client, workspaceId, chatId, displayName, disp
     [workspaceId, displayName || phone, phone, chatId]
   );
   const contact = contactResult.rows[0];
+  const sameContact = await client.query(
+    `SELECT c.id, c.contact_id, c.channel, c.provider_conversation_id
+     FROM conversations c
+     JOIN contacts ct ON ct.id=c.contact_id
+     WHERE c.workspace_id=$1 AND c.channel='whatsapp' AND (ct.phone_e164=$2 OR c.provider_conversation_id=$3)
+     ORDER BY last_activity_at DESC, created_at ASC`,
+    [workspaceId, phone, chatId]
+  );
+  if (sameContact.rows.length) {
+    const canonical = sameContact.rows[0];
+    if (canonical.contact_id !== contact.id) {
+      await client.query('UPDATE conversations SET contact_id=$1, updated_at=now() WHERE id=$2 AND workspace_id=$3', [contact.id, canonical.id, workspaceId]);
+      canonical.contact_id = contact.id;
+    }
+    for (const duplicate of sameContact.rows.slice(1)) {
+      await client.query('UPDATE messages SET conversation_id=$1 WHERE conversation_id=$2 AND workspace_id=$3', [canonical.id, duplicate.id, workspaceId]);
+      await client.query(`UPDATE audit_events SET entity_id=$1 WHERE workspace_id=$2 AND entity_type='conversation' AND entity_id=$3`, [canonical.id, workspaceId, duplicate.id]);
+      await client.query('DELETE FROM conversations WHERE id=$1 AND workspace_id=$2', [duplicate.id, workspaceId]);
+    }
+    return canonical;
+  }
   const conversationResult = await client.query(
     `INSERT INTO conversations (workspace_id, contact_id, channel, provider_conversation_id)
      VALUES ($1,$2,'whatsapp',$3)
@@ -77,12 +98,7 @@ async function ensureConversation(client, workspaceId, chatId, displayName, disp
      FROM conversations WHERE workspace_id = $1 AND provider_conversation_id = $2 LIMIT 1`,
     [workspaceId, chatId]
   );
-  if (!existing.rows[0]) return null;
-  if (existing.rows[0].contact_id !== contact.id) {
-    await client.query('UPDATE conversations SET contact_id=$1, updated_at=now() WHERE id=$2 AND workspace_id=$3', [contact.id, existing.rows[0].id, workspaceId]);
-    existing.rows[0].contact_id = contact.id;
-  }
-  return existing.rows[0];
+  return existing.rows[0] || null;
 }
 
 async function persistWahaMessage(event) {
