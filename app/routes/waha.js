@@ -69,7 +69,7 @@ async function ensureConversation(client, workspaceId, chatId, displayName, disp
      FROM conversations c
      JOIN contacts ct ON ct.id=c.contact_id
      WHERE c.workspace_id=$1 AND c.channel='whatsapp' AND (ct.phone_e164=$2 OR c.provider_conversation_id=$3)
-     ORDER BY last_activity_at DESC, created_at ASC`,
+     ORDER BY c.last_activity_at DESC, c.created_at ASC`,
     [workspaceId, phone, chatId]
   );
   if (sameContact.rows.length) {
