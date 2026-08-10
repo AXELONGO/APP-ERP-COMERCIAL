@@ -279,7 +279,7 @@ function registerQuoteRoutes(app) {
       const contact = await db.query('SELECT * FROM contacts WHERE id=$1 AND workspace_id=$2', [req.params.id, req.workspaceId]);
       if (!contact.rows[0]) return res.status(404).json({ error: 'Contacto no encontrado' });
       const notes = await db.query('SELECT n.*,u.name AS author_name FROM contact_notes n LEFT JOIN users u ON u.id=n.created_by WHERE n.contact_id=$1 AND n.workspace_id=$2 ORDER BY n.created_at DESC', [req.params.id, req.workspaceId]);
-      const history = await db.query(`SELECT event_type,entity_type,entity_id,actor_type,actor_id,after_data,created_at FROM audit_events WHERE workspace_id=$1 AND ((entity_type='contact' AND entity_id::text=$2::text) OR (entity_type='quote' AND after_data->>'contact_id'=$2::text)) ORDER BY created_at DESC LIMIT 100`, [req.workspaceId, req.params.id]);
+       const history = await db.query(`SELECT ae.event_type,ae.entity_type,ae.entity_id,ae.actor_type,ae.actor_id,ae.after_data,ae.created_at FROM audit_events ae WHERE ae.workspace_id=$1 AND ((ae.entity_type='contact' AND ae.entity_id::text=$2::text) OR (ae.entity_type='quote' AND ae.after_data->>'contact_id'=$2::text)) ORDER BY ae.created_at DESC LIMIT 100`, [req.workspaceId, req.params.id]);
       res.json({ data: { contact: contact.rows[0], notes: notes.rows, history: history.rows } });
     } catch (error) { next(error); }
   });

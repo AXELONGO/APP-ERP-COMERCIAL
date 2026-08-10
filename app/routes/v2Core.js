@@ -169,8 +169,8 @@ function registerV2CoreRoutes(app) {
   app.get('/api/v2/audit-events', requireV2Auth, requireRole('admin', 'supervisor'), async (req, res, next) => {
     try {
       const result = await query(
-        `SELECT id, event_type, entity_type, entity_id, actor_type, actor_id, before_data, after_data, created_at
-         FROM audit_events WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT $2`,
+         `SELECT ae.id, ae.event_type, ae.entity_type, ae.entity_id, ae.actor_type, ae.actor_id, ae.before_data, ae.after_data, ae.created_at
+          FROM audit_events ae WHERE ae.workspace_id = $1 ORDER BY ae.created_at DESC LIMIT $2`,
         [req.workspaceId, parseLimit(req.query.limit)]
       );
       res.json({ data: result.rows });
