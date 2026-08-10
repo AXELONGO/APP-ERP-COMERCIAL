@@ -374,6 +374,7 @@ let wahaConversations = [];
 let activeWahaConversation = null;
 let wahaFilter = 'all';
 let wahaPollTimer = null;
+let wahaThreadTab = 'chat';
 
 function v2Headers(extra = {}) {
   const token = localStorage.getItem(V2_TOKEN_KEY);
@@ -404,6 +405,7 @@ function setWahaStatus(text, detail, connected = false) {
 }
 
 async function loadChats() {
+  ensureWahaInboxUi();
   const loginButton = document.getElementById('wahaLoginButton');
   try {
     const status = await v2Fetch('/api/v2/waha/status');
@@ -483,6 +485,54 @@ function newestWahaConversation(items, current = null) {
   return items.filter(item => !key || wahaConversationKey(item) === key).sort((a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0))[0] || current;
 }
 
+function ensureWahaInboxUi() {
+  const section = document.getElementById('section-chats');
+  const panel = section?.querySelector('.inbox-list');
+  if (!panel || panel.querySelector('.waha-sidebar-tools')) return;
+  const legacyToolbar = section.querySelector('.chat-toolbar');
+  const search = document.getElementById('wahaSearch')?.closest('.chat-search');
+  const tools = document.createElement('div');
+  tools.className = 'waha-sidebar-tools';
+  tools.innerHTML = '<div class="waha-sidebar-filters"><button class="waha-filter-control"><i class="ph ph-circle-dashed"></i> Estado <i class="ph ph-caret-down"></i></button><button class="waha-filter-control" onclick="setWahaFilter(\'all\')"><i class="ph ph-user"></i> Asesor <i class="ph ph-caret-down"></i></button><button class="waha-filter-control" onclick="setWahaFilter(\'all\')"><i class="ph ph-funnel"></i> Etapa <i class="ph ph-caret-down"></i></button></div><button class="waha-new-conversation" onclick="showToast(\'Selecciona un contacto para iniciar una conversación\')"><i class="ph ph-chat-circle-dots"></i> Nueva conversación</button>';
+  if (search) tools.prepend(search);
+  panel.prepend(tools);
+  if (legacyToolbar) legacyToolbar.style.display = 'none';
+  const thread = document.getElementById('wahaThread');
+  const detail = document.getElementById('wahaContactDetails');
+  if (thread && detail && !thread.contains(detail)) {
+    detail.classList.add('waha-thread-details');
+    thread.insertBefore(detail, document.getElementById('wahaMessages'));
+  }
+  if (thread && !thread.querySelector('.waha-thread-tabs')) {
+    const messages = document.getElementById('wahaMessages');
+    messages?.insertAdjacentHTML('beforebegin', '<div class="waha-thread-tabs"><button class="active" data-thread-tab="chat" onclick="setWahaThreadTab(\'chat\')"><i class="ph ph-chat-circle"></i> Chat</button><button data-thread-tab="details" onclick="setWahaThreadTab(\'details\')"><i class="ph ph-info"></i> Detalles</button></div>');
+  }
+}
+
+function setWahaThreadTab(tab) {
+  wahaThreadTab = tab;
+  document.querySelectorAll('.waha-thread-tabs button').forEach(button => button.classList.toggle('active', button.dataset.threadTab === tab));
+  document.getElementById('wahaMessages')?.classList.toggle('hidden', tab !== 'chat');
+  document.querySelector('.waha-composer')?.classList.toggle('hidden', tab !== 'chat');
+  document.getElementById('wahaContactDetails')?.classList.toggle('hidden', tab !== 'details');
+}
+
+function renderWahaMessages(messages) {
+  if (!messages.length) return '<div class="waha-message-empty">No hay mensajes guardados todavía.</div>';
+  let lastDate = '';
+  return messages.map(message => {
+    const date = new Date(message.created_at);
+    const dateLabel = date.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' });
+    const separator = dateLabel !== lastDate ? `<div class="waha-date-separator"><span>${escapeWahaHtml(dateLabel)}</span></div>` : '';
+    lastDate = dateLabel;
+    const outbound = message.direction === 'outbound';
+    const sender = outbound ? (message.created_by_name || 'Tú') : (activeWahaConversation ? wahaDisplayName(activeWahaConversation) : 'Cliente');
+    const body = escapeWahaHtml(message.body || '').replace(/\n/g, '<br>');
+    const file = String(message.body || '').startsWith('[archivo]');
+    return `${separator}<div class="waha-message-row ${outbound ? 'outbound' : 'inbound'}"><div class="waha-message-author"><span class="waha-message-mini-avatar">${escapeWahaHtml(sender.slice(0, 1).toUpperCase())}</span><strong>${escapeWahaHtml(sender)}</strong></div><div class="waha-message ${outbound ? 'outbound' : 'inbound'} ${file ? 'file-message' : ''}">${file ? `<i class="ph ph-file-pdf"></i><span>${body}</span>` : `<div>${body}</div>`}<time>${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div></div>`;
+  }).join('');
+}
+
 function renderWahaConversations() {
   const search = String(document.getElementById('wahaSearch')?.value || '').toLowerCase();
   const filtered = wahaConversations.filter(item => (wahaFilter === 'all' || item.status === wahaFilter) && `${item.contact_name} ${item.phone_e164}`.toLowerCase().includes(search));
@@ -495,7 +545,7 @@ function renderWahaConversations() {
     list.innerHTML = '<div class="inbox-empty"><i class="ph ph-chat-circle-dots"></i><span>No se encontraron chats</span><small>Los mensajes de WAHA aparecerán aquí.</small></div>';
     return;
   }
-  list.innerHTML = rows.map(item => `<button class="waha-conversation-item ${activeWahaConversation?.id === item.id ? 'active' : ''}" onclick="selectWahaConversation('${item.id}')"><span class="waha-contact-avatar">${escapeWahaHtml(wahaDisplayName(item).slice(0, 1).toUpperCase())}</span><span class="waha-conversation-copy"><strong>${escapeWahaHtml(wahaDisplayName(item))}</strong><small>${escapeWahaHtml(item.channel || 'whatsapp')} · ${escapeWahaHtml(item.status || 'new')}</small></span><time>${item.last_activity_at ? new Date(item.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</time></button>`).join('');
+  list.innerHTML = rows.map(item => `<button class="waha-conversation-item ${activeWahaConversation?.id === item.id ? 'active' : ''}" onclick="selectWahaConversation('${item.id}')"><span class="waha-contact-avatar">${escapeWahaHtml(wahaDisplayName(item).slice(0, 1).toUpperCase())}</span><span class="waha-conversation-copy"><strong>${escapeWahaHtml(wahaDisplayName(item))}</strong><small><i class="ph ph-${item.channel === 'instagram' ? 'instagram-logo' : item.channel === 'messenger' ? 'facebook-logo' : 'game-controller'}"></i> ${escapeWahaHtml(item.phone_e164 || item.channel || 'WhatsApp')}</small><span class="waha-stage-pill">${escapeWahaHtml(item.pipeline_stage || 'new')}</span></span><time>${item.last_activity_at ? new Date(item.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</time></button>`).join('');
 }
 
 function setWahaFilter(filter) { wahaFilter = filter; renderWahaConversations(); }
@@ -509,6 +559,7 @@ async function syncWahaHistory() {
 }
 
 async function selectWahaConversation(id) {
+  ensureWahaInboxUi();
   activeWahaConversation = wahaConversations.find(item => item.id === id) || null;
   renderWahaConversations();
   if (!activeWahaConversation) return;
@@ -520,12 +571,15 @@ async function selectWahaConversation(id) {
   document.getElementById('wahaThreadPhone').textContent = activeWahaConversation.phone_e164 || '';
   const channelLabel = activeWahaConversation.channel === 'instagram' ? 'Instagram' : activeWahaConversation.channel === 'messenger' ? 'Messenger' : 'WhatsApp';
   document.querySelector('#wahaThread .soft-badge')?.replaceChildren(document.createTextNode(channelLabel));
+  const threadHead = document.querySelector('.conversation-thread-head');
+  if (threadHead && !threadHead.querySelector('.waha-thread-actions')) threadHead.insertAdjacentHTML('beforeend', '<div class="waha-thread-actions"><button title="Marcar como leído"><i class="ph ph-envelope"></i></button><button title="Marcar importante"><i class="ph ph-flag"></i></button><button title="Filtros"><i class="ph ph-funnel"></i></button><button title="Asignar"><i class="ph ph-user"></i></button><button title="Calendario"><i class="ph ph-calendar-blank"></i></button></div>');
   const prospect = wahaProspect(activeWahaConversation);
   document.getElementById('wahaContactDetails').innerHTML = `<i class="ph ph-user-circle"></i><strong>${escapeWahaHtml(prospect?.['Nombre del Contacto'] || wahaDisplayName(activeWahaConversation))}</strong><small>${escapeWahaHtml(prospect?.['Teléfono'] || activeWahaConversation.phone_e164 || '')}${prospect?.['Correo Electrónico'] ? ` · ${escapeWahaHtml(prospect['Correo Electrónico'])}` : ''}</small><span class="soft-badge gray">Etapa: ${escapeWahaHtml(prospect?.['Etapa'] || activeWahaConversation.pipeline_stage || 'new')}</span>${prospect ? `<small class="waha-prospect-match"><i class="ph ph-check-circle"></i> Prospecto ${escapeWahaHtml(prospect['ID Prospectos'] || '')} relacionado</small>` : ''}<button class="btn btn-outline btn-small waha-contact-profile-button" onclick="openWahaContactProfile()"><i class="ph ph-address-book"></i> Ver ficha y notas</button>`;
   try {
     const result = await v2Fetch(`/api/v2/conversations/${encodeURIComponent(id)}/messages?limit=200`);
     const messages = result.data || [];
-    document.getElementById('wahaMessages').innerHTML = messages.length ? messages.map(message => `<div class="waha-message ${message.direction === 'outbound' ? 'outbound' : 'inbound'}"><div>${escapeWahaHtml(message.body).replace(/\n/g, '<br>')}</div><time>${new Date(message.created_at).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</time></div>`).join('') : '<div class="waha-message-empty">No hay mensajes guardados todavía.</div>';
+    document.getElementById('wahaMessages').innerHTML = renderWahaMessages(messages);
+    setWahaThreadTab(wahaThreadTab);
     const container = document.getElementById('wahaMessages');
     container.scrollTop = container.scrollHeight;
   } catch (error) { showToast(`<i class="ph-fill ph-x-circle" style="color:#ef4444"></i> ${error.message}`); }
