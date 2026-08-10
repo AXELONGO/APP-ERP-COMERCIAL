@@ -89,7 +89,7 @@ async function configureAndStartSession({ webhookUrl, webhookSecret, wahaConfig 
   const config = getWahaConfig(wahaConfig);
   const webhooks = webhookUrl ? [{
     url: webhookUrl,
-    events: ['message', 'message.ack', 'session.status'],
+      events: ['message.any', 'message.ack', 'session.status'],
     ...(webhookSecret ? { customHeaders: [{ name: 'X-ERP-Webhook-Secret', value: webhookSecret }] } : {}),
   }] : [];
   const payload = {

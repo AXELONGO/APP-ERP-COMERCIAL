@@ -385,6 +385,7 @@ function registerWahaRoutes(app) {
       const config = await workspaceWahaConfig(workspaceId);
       const contact = await resolveWebhookContact(config, chatId);
       const conversationId = await persistWahaMessage({ ...event, workspaceId, chatPhone: contact.phone, chatName: contact.name });
+      console.info('[WAHA webhook] mensaje persistido', { event: event.event, workspaceId, conversationId, providerMessageId: payload.id || null });
       return res.status(200).json({ received: true, conversation_id: conversationId });
     }
     if (event.event === 'message.ack') {
