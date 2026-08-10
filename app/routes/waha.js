@@ -226,7 +226,7 @@ async function syncWahaRecent(workspaceId, config) {
   const identities = await loadWahaIdentities(config);
   let rows = await getAllMessages(config.session, config, { limit: 1000, offset: 0 }).catch(() => []);
   if (!Array.isArray(rows) || !rows.length) {
-    const chats = await getChats(config.session, config, { limit: 50, offset: 0 });
+    const chats = await getChats(config.session, config, { limit: 50, offset: 0 }).catch(() => []);
     rows = [];
     for (const chat of Array.isArray(chats) ? chats : []) {
       const chatId = chat.id || chat.chatId;
@@ -251,7 +251,7 @@ async function syncWahaRecent(workspaceId, config) {
     if (await persistWahaMessage({ event: 'message', session: config.session, workspaceId, payload, chatName, chatPhone })) imported += 1;
   }
   await normalizeWahaConversationTimes(workspaceId);
-  return { chats: chatIds.size, messages: imported };
+  return { chats: chatIds.size, messages: imported, source: rows.length ? 'waha' : 'database' };
 }
 
 async function loadWahaIdentities(config) {

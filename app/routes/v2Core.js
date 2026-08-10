@@ -99,8 +99,8 @@ function registerV2CoreRoutes(app) {
     try {
       const limit = parseLimit(req.query.limit, 50);
       const result = await query(
-        `SELECT c.*, ct.name AS contact_name, ct.phone_e164
-         FROM conversations c JOIN contacts ct ON ct.id = c.contact_id
+        `SELECT c.*, COALESCE(ct.name, c.provider_conversation_id) AS contact_name, ct.phone_e164
+         FROM conversations c LEFT JOIN contacts ct ON ct.id = c.contact_id
          WHERE c.workspace_id = $1
          ORDER BY c.last_activity_at DESC LIMIT $2`,
         [req.workspaceId, limit]
