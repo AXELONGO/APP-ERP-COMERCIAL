@@ -25,6 +25,7 @@ const { registerWahaRoutes } = require('./routes/waha');
 const { registerIntegrationRoutes } = require('./routes/integrations');
 const { registerQuoteRoutes } = require('./routes/quotes');
 const { registerMetaRoutes } = require('./routes/meta');
+const { registerHealthRoutes } = require('./routes/health');
 const { ensureV2Bootstrap } = require('./services/v2Bootstrap');
 const { seedLegacyPipelines } = require('./services/pipelineService');
 const { ensureProspectosGiroColumn } = require('./services/legacySchemaService');
@@ -88,6 +89,7 @@ app.use(fileUpload({
   abortOnLimit: true,
   responseOnLimit: 'El archivo excede el límite de 50MB',
 }));
+registerHealthRoutes(app);
 
 app.use((req, res, next) => {
   const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
@@ -198,7 +200,7 @@ async function runStartupMigrations() {
 }
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 ERP LUMARK → http://localhost:${PORT}\n`);
+  console.log(`\n🚀 ERP LUMARK → http://localhost:${PORT} | build=${process.env.APP_BUILD || process.env.GIT_COMMIT || process.env.COMMIT_SHA || 'local'}\n`);
   runStartupMigrations();
 });
 

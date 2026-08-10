@@ -4,7 +4,9 @@ const INFORMATION_WEBHOOK_URL = process.env.N8N_INFORMATION_WEBHOOK_URL || 'http
 const MOVEMENTS_WEBHOOK_URL = process.env.N8N_MOVEMENTS_WEBHOOK_URL || INFORMATION_WEBHOOK_URL;
 const BUGS_WEBHOOK_URL = process.env.N8N_BUGS_WEBHOOK_URL || INFORMATION_WEBHOOK_URL;
 const recentBugReports = new Map();
+const webhookCircuit = new Map();
 const BUG_DEDUP_WINDOW_MS = 5 * 60 * 1000;
+const WEBHOOK_COOLDOWN_MS = 60 * 1000;
 
 function getEnvironment() {
   return process.env.NODE_ENV === 'production' ? 'produccion' : 'desarrollo';
@@ -49,6 +51,9 @@ function shouldReportBug({ level, context, eventType }) {
 
 async function postWebhook(url, payload) {
   if (!url) return false;
+  const circuit = webhookCircuit.get(url);
+  if (circuit && circuit.openUntil > Date.now()) return false;
+  const hostname = (() => { try { return new URL(url).hostname; } catch { return 'invalid-url'; } })();
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
@@ -59,15 +64,17 @@ async function postWebhook(url, payload) {
         body: JSON.stringify(payload),
         signal: controller.signal
       });
-      if (response.ok) return true;
-      console.error(`[Webhook] HTTP ${response.status} al enviar evento (intento ${attempt}/3)`);
+       if (response.ok) { webhookCircuit.delete(url); return true; }
+       console.error(`[Webhook] HTTP ${response.status} al enviar evento a ${hostname} (intento ${attempt}/3)`);
     } catch (error) {
-      console.error(`[Webhook] No se pudo enviar evento (intento ${attempt}/3):`, error.message);
+      console.error(`[Webhook] No se pudo enviar evento a ${hostname} (intento ${attempt}/3):`, error.message);
     } finally {
       clearTimeout(timeout);
     }
     if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
   }
+  webhookCircuit.set(url, { openUntil: Date.now() + WEBHOOK_COOLDOWN_MS });
+  console.error(`[Webhook] Circuito abierto durante ${WEBHOOK_COOLDOWN_MS / 1000}s para ${hostname}; el ERP seguirá operando sin notificaciones externas.`);
   return false;
 }
 

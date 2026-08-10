@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { calculateQuote, validatePaymentPlan } = require('../../app/routes/quotes');
+const { calculateQuote, validatePaymentPlan, buildQuotePdfBuffer } = require('../../app/routes/quotes');
 
 const quote = calculateQuote({
   items: [{ name: 'Servicio', quantity: 2, unit_price: 100 }],
@@ -17,4 +17,17 @@ assert.throws(() => validatePaymentPlan({ concepts: [{ name: 'Anticipo', amount:
 assert.throws(() => calculateQuote({ items: [{ name: 'Inválido', quantity: 0, unit_price: 100 }] }), /cantidad/i);
 assert.throws(() => calculateQuote({ items: [{ name: 'Inválido', quantity: 1, unit_price: -1 }] }), /precio/i);
 
-console.log('Quote calculation tests: OK');
+(async () => {
+  const pdf = await buildQuotePdfBuffer({
+    quote_number: 'COT-TEST',
+    contact_name: 'Cliente de prueba',
+    currency: 'MXN',
+    valid_until: '2026-12-31',
+    items: [{ name: 'Servicio', quantity: 1, unit_price: 100 }],
+    subtotal: 100,
+    tax_amount: 16,
+    total: 116,
+  });
+  assert.equal(pdf.subarray(0, 4).toString(), '%PDF');
+  console.log('Quote calculation and PDF tests: OK');
+})();

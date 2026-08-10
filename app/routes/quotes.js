@@ -1,7 +1,7 @@
 const { getPool } = require('../config/database');
 const { requireV2Auth, requireRole } = require('../middleware/v2Auth');
 const { getIntegrationConfig } = require('../services/integrationConfig');
-const { sendText, getWahaConfig } = require('../services/wahaClient');
+const { sendFile, getWahaConfig } = require('../services/wahaClient');
 const PDFDocument = require('pdfkit');
 
 const WRITE_ROLES = ['admin', 'supervisor', 'advisor'];
@@ -96,6 +96,41 @@ function quotePayload(body, calculated) {
     send_channel: body.send_channel || null,
     message: body.message || null,
   };
+}
+
+function renderQuotePdf(doc, quote) {
+  const safe = value => String(value ?? '');
+  doc.fillColor('#4f2bb8').fontSize(24).font('Helvetica-Bold').text('LUMARK');
+  doc.fillColor('#17151d').fontSize(18).text(`Cotización ${safe(quote.quote_number)}`);
+  doc.fillColor('#756d80').fontSize(11).font('Helvetica').text(`Cliente: ${safe(quote.contact_name || 'Sin contacto')}`);
+  doc.text(`Fecha de vigencia: ${safe(quote.valid_until || 'No especificada')}`);
+  doc.moveDown();
+  doc.strokeColor('#e8e2f0').moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+  doc.moveDown();
+  for (const item of quote.items || []) {
+    const lineTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
+    doc.fillColor('#17151d').fontSize(11).font('Helvetica-Bold').text(safe(item.name));
+    doc.font('Helvetica').fillColor('#756d80').text(`${item.quantity} x ${quote.currency} ${Number(item.unit_price).toFixed(2)} = ${quote.currency} ${lineTotal.toFixed(2)}`);
+    if (item.description) doc.text(safe(item.description));
+    doc.moveDown(0.5);
+  }
+  doc.moveDown();
+  doc.fillColor('#17151d').fontSize(12).font('Helvetica').text(`Subtotal: ${quote.currency} ${Number(quote.subtotal).toFixed(2)}`);
+  doc.text(`Impuestos: ${quote.currency} ${Number(quote.tax_amount).toFixed(2)}`);
+  doc.font('Helvetica-Bold').fontSize(18).text(`Total: ${quote.currency} ${Number(quote.total).toFixed(2)}`);
+  if (quote.message) { doc.moveDown(); doc.font('Helvetica').fontSize(11).text(safe(quote.message)); }
+}
+
+function buildQuotePdfBuffer(quote) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    renderQuotePdf(doc, quote);
+    doc.end();
+  });
 }
 
 async function findQuote(client, workspaceId, id, withItems = true) {
@@ -235,27 +270,70 @@ function registerQuoteRoutes(app) {
 
   app.post('/api/v2/quotes/:id/send', requireV2Auth, requireRole(...WRITE_ROLES), async (req, res, next) => {
     const client = await getPool().connect();
+    let channel = null;
     try {
       await client.query('BEGIN');
       const existing = await findQuote(client, req.workspaceId, req.params.id);
       if (!existing) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Cotización no encontrada' }); }
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`quote-send:${req.workspaceId}:${existing.id}`]);
+      const current = await findQuote(client, req.workspaceId, req.params.id);
+      if (current?.locked_at || ['sent', 'viewed', 'accepted', 'rejected', 'expired', 'cancelled'].includes(current?.status)) {
+        throw badRequest('Esta cotización ya fue enviada o está congelada. Duplica la versión para volver a enviarla.');
+      }
+      Object.assign(existing, current);
       const body = { ...existing, ...req.body, items: existing.items };
       const calculated = calculateQuote(body);
       validateForSend(body, calculated);
-      const channel = body.send_channel || req.body?.send_channel || 'link';
+      channel = body.send_channel || req.body?.send_channel || 'link';
+      console.info('[QUOTE SEND] solicitud recibida', { workspaceId: req.workspaceId, quoteId: existing.id, channel, contactId: existing.contact_id });
       if (channel === 'whatsapp') {
         if (!existing.phone_e164) throw badRequest('El contacto no tiene teléfono para WhatsApp');
         const waha = await getIntegrationConfig(req.workspaceId, 'waha');
         const config = { ...getWahaConfig(), ...(waha.config || {}) };
         const digits = String(existing.phone_e164).replace(/\D/g, '');
-        const publicUrl = `${process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`}/quote/${existing.id}`;
-        await sendText({ session: config.session || 'default', wahaConfig: config, chatId: `${digits}@c.us`, text: `Hola ${existing.contact_name || ''}, te compartimos la cotización ${existing.quote_number} por ${existing.currency} ${Number(existing.total).toFixed(2)}: ${publicUrl}` });
+        if (!/^\d{8,15}$/.test(digits)) throw badRequest('El teléfono del contacto no es válido para WhatsApp');
+        if (!config.baseUrl) throw badRequest('WAHA no está configurado para este workspace');
+        const pdf = await buildQuotePdfBuffer(existing);
+        if (pdf.length > 10 * 1024 * 1024) throw badRequest('El PDF supera el límite de 10 MB para WhatsApp');
+        const filename = `Cotizacion_${String(existing.quote_number || existing.id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+        console.info('[QUOTE WhatsApp] enviando PDF', { workspaceId: req.workspaceId, quoteId: existing.id, quoteNumber: existing.quote_number, chatId: `${digits}@c.us`, filename, bytes: pdf.length });
+        const result = await sendFile({
+          session: config.session || 'default',
+          wahaConfig: config,
+          chatId: `${digits}@c.us`,
+          file: { data: pdf.toString('base64'), mimetype: 'application/pdf', filename },
+        });
+        console.info('[QUOTE WhatsApp] PDF enviado', { workspaceId: req.workspaceId, quoteId: existing.id, providerMessageId: result?.id || result?.messageId || null });
+        let conversation = await client.query(
+          `SELECT id FROM conversations
+           WHERE workspace_id=$1 AND contact_id=$2 AND channel='whatsapp'
+           ORDER BY last_activity_at DESC NULLS LAST LIMIT 1`,
+          [req.workspaceId, existing.contact_id]
+        );
+        if (!conversation.rows[0]) conversation = await client.query(
+          `INSERT INTO conversations (workspace_id,contact_id,channel,provider_conversation_id,status,last_activity_at,updated_at)
+           VALUES ($1,$2,'whatsapp',$3,'open',now(),now())
+           ON CONFLICT (workspace_id,provider_conversation_id) WHERE provider_conversation_id IS NOT NULL
+           DO UPDATE SET last_activity_at=now(),updated_at=now()
+           RETURNING id`,
+          [req.workspaceId, existing.contact_id, `${digits}@c.us`]
+        );
+        await client.query(
+          `INSERT INTO messages (workspace_id,conversation_id,direction,channel,body,provider_message_id,delivery_status,created_by)
+           VALUES ($1,$2,'outbound','whatsapp',$3,$4,'sent',$5)
+           ON CONFLICT (workspace_id,provider_message_id) WHERE provider_message_id IS NOT NULL DO NOTHING`,
+          [req.workspaceId, conversation.rows[0].id, `[archivo] ${filename}`, result?.id || result?.messageId || null, req.user.sub]
+        );
       }
       const updated = await client.query(`UPDATE quotes SET status='sent',locked_at=now(),send_channel=$1,version=version+1,updated_at=now() WHERE id=$2 AND workspace_id=$3 RETURNING *`, [channel, existing.id, req.workspaceId]);
       await addQuoteEvent(client, req.workspaceId, existing.id, 'sent', req.user.sub, channel, { version: updated.rows[0].version });
       await client.query('COMMIT');
       res.json({ data: await findQuote(client, req.workspaceId, existing.id) });
-    } catch (error) { await client.query('ROLLBACK').catch(() => {}); next(error); } finally { client.release(); }
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error('[QUOTE SEND] envío fallido', { workspaceId: req.workspaceId, quoteId: req.params.id, channel, status: error.status || 500, error: error.message });
+      next(error);
+    } finally { client.release(); }
   });
 
   app.post('/api/v2/quotes/:id/duplicate', requireV2Auth, requireRole(...WRITE_ROLES), async (req, res, next) => {
@@ -319,33 +397,12 @@ function registerQuoteRoutes(app) {
     try {
       const quote = await findQuote(getPool(), null, req.params.id);
       if (!quote) return res.status(404).json({ error: 'Cotización no encontrada' });
-      const safe = value => String(value ?? '');
-      const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+      const pdf = await buildQuotePdfBuffer(quote);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${quote.quote_number || 'cotizacion'}.pdf"`);
-      doc.pipe(res);
-      doc.fillColor('#4f2bb8').fontSize(24).font('Helvetica-Bold').text('LUMARK');
-      doc.fillColor('#17151d').fontSize(18).text(`Cotización ${safe(quote.quote_number)}`);
-      doc.fillColor('#756d80').fontSize(11).font('Helvetica').text(`Cliente: ${safe(quote.contact_name || 'Sin contacto')}`);
-      doc.text(`Fecha de vigencia: ${safe(quote.valid_until || 'No especificada')}`);
-      doc.moveDown();
-      doc.strokeColor('#e8e2f0').moveTo(50, doc.y).lineTo(562, doc.y).stroke();
-      doc.moveDown();
-      for (const item of quote.items || []) {
-        const lineTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
-        doc.fillColor('#17151d').fontSize(11).font('Helvetica-Bold').text(safe(item.name));
-        doc.font('Helvetica').fillColor('#756d80').text(`${item.quantity} x ${quote.currency} ${Number(item.unit_price).toFixed(2)} = ${quote.currency} ${lineTotal.toFixed(2)}`);
-        if (item.description) doc.text(safe(item.description));
-        doc.moveDown(0.5);
-      }
-      doc.moveDown();
-      doc.fillColor('#17151d').fontSize(12).font('Helvetica').text(`Subtotal: ${quote.currency} ${Number(quote.subtotal).toFixed(2)}`);
-      doc.text(`Impuestos: ${quote.currency} ${Number(quote.tax_amount).toFixed(2)}`);
-      doc.font('Helvetica-Bold').fontSize(18).text(`Total: ${quote.currency} ${Number(quote.total).toFixed(2)}`);
-      if (quote.message) { doc.moveDown(); doc.font('Helvetica').fontSize(11).text(safe(quote.message)); }
-      doc.end();
+      res.send(pdf);
     } catch (error) { next(error); }
   });
 }
 
-module.exports = { registerQuoteRoutes, calculateQuote, validatePaymentPlan, normalizeItems };
+module.exports = { registerQuoteRoutes, calculateQuote, validatePaymentPlan, normalizeItems, buildQuotePdfBuffer };
