@@ -77,7 +77,12 @@ async function ensureConversation(client, workspaceId, chatId, displayName, disp
      FROM conversations WHERE workspace_id = $1 AND provider_conversation_id = $2 LIMIT 1`,
     [workspaceId, chatId]
   );
-  return existing.rows[0] || null;
+  if (!existing.rows[0]) return null;
+  if (existing.rows[0].contact_id !== contact.id) {
+    await client.query('UPDATE conversations SET contact_id=$1, updated_at=now() WHERE id=$2 AND workspace_id=$3', [contact.id, existing.rows[0].id, workspaceId]);
+    existing.rows[0].contact_id = contact.id;
+  }
+  return existing.rows[0];
 }
 
 async function persistWahaMessage(event) {
@@ -87,6 +92,16 @@ async function persistWahaMessage(event) {
     ? await persistMessageForWorkspace(event.workspaceId, chatId, payload, event.chatName, event.chatPhone)
     : null;
   return conversationId;
+}
+
+async function resolveWebhookContact(config, chatId) {
+  if (!String(chatId || '').endsWith('@lid')) return {};
+  const lid = await getLidPhone(config.session, chatId, config).catch(() => null);
+  const contact = await getContact(config.session, chatId, config).catch(() => null);
+  const rawPhone = lid?.pn || lid?.phone || contact?.number || contact?.id || '';
+  const phoneId = String(rawPhone).includes('@') ? rawPhone : `${rawPhone}@c.us`;
+  const phone = phoneFromChatId(phoneId);
+  return { phone, name: contact?.name || contact?.pushname || contact?.shortName || null };
 }
 
 function messageTimestamp(payload) {
@@ -365,7 +380,12 @@ function registerWahaRoutes(app) {
     const workspaceId = await resolveWebhookWorkspace(event, req).catch(() => null);
     if (!workspaceId) return res.status(401).json({ error: 'Webhook no autorizado o workspace no configurado' });
     if (event.event === 'message' || event.event === 'message.any') {
-      await persistWahaMessage({ ...event, workspaceId });
+      const payload = event.payload || {};
+      const chatId = payload.fromMe && payload.to && payload.to !== 'me' ? payload.to : payload.from;
+      const config = await workspaceWahaConfig(workspaceId);
+      const contact = await resolveWebhookContact(config, chatId);
+      const conversationId = await persistWahaMessage({ ...event, workspaceId, chatPhone: contact.phone, chatName: contact.name });
+      return res.status(200).json({ received: true, conversation_id: conversationId });
     }
     if (event.event === 'message.ack') {
       await persistWahaAck(workspaceId, event.payload);
