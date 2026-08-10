@@ -35,6 +35,12 @@ function chatIdFromPhone(phone) {
   return digits ? `${digits}@c.us` : null;
 }
 
+function outboundChatId(providerConversationId, phone) {
+  const providerId = String(providerConversationId || '').trim();
+  if (providerId && !providerId.endsWith('@lid')) return providerId;
+  return chatIdFromPhone(phone);
+}
+
 function webhookSecretMatches(req) {
   const expected = process.env.WAHA_WEBHOOK_SECRET || '';
   return !expected || req.get('x-erp-webhook-secret') === expected;
@@ -310,9 +316,10 @@ function registerWahaRoutes(app) {
          WHERE c.id = $1 AND c.workspace_id = $2 AND c.channel = 'whatsapp'`,
         [conversationId, req.workspaceId]
       );
-      const row = conversation.rows[0];
-      const chatId = row?.provider_conversation_id || chatIdFromPhone(row?.phone_e164);
-      if (!row || !chatId) return res.status(404).json({ error: 'Conversación WAHA no encontrada' });
+       const row = conversation.rows[0];
+       const chatId = outboundChatId(row?.provider_conversation_id, row?.phone_e164);
+       if (!row) return res.status(404).json({ error: 'Conversación WAHA no encontrada' });
+       if (!chatId) return res.status(422).json({ error: 'Este chat usa un identificador WAHA sin teléfono asociado; sincroniza los contactos de WAHA antes de enviar.' });
       const config = await workspaceWahaConfig(req.workspaceId);
       const result = await sendText({ session: config.session, wahaConfig: config, chatId, text: String(body).trim(), replyTo });
       const inserted = await query(
@@ -336,9 +343,10 @@ function registerWahaRoutes(app) {
          WHERE c.id = $1 AND c.workspace_id = $2 AND c.channel = 'whatsapp'`,
         [conversationId, req.workspaceId]
       );
-      const row = conversation.rows[0];
-      const chatId = row?.provider_conversation_id || chatIdFromPhone(row?.phone_e164);
-      if (!row || !chatId) return res.status(404).json({ error: 'Conversación WAHA no encontrada' });
+       const row = conversation.rows[0];
+       const chatId = outboundChatId(row?.provider_conversation_id, row?.phone_e164);
+       if (!row) return res.status(404).json({ error: 'Conversación WAHA no encontrada' });
+       if (!chatId) return res.status(422).json({ error: 'Este chat usa un identificador WAHA sin teléfono asociado; sincroniza los contactos de WAHA antes de enviar.' });
       const config = await workspaceWahaConfig(req.workspaceId);
       const result = await sendFile({ session: config.session, wahaConfig: config, chatId, file: { data: String(file.data).replace(/^data:[^;]+;base64,/, ''), mimetype: file.mimetype || 'application/octet-stream', filename: String(file.filename).slice(0, 180) }, caption: String(caption).slice(0, 2000), replyTo });
       const body = String(caption).trim() || `[archivo] ${String(file.filename).slice(0, 180)}`;
@@ -366,4 +374,4 @@ function registerWahaRoutes(app) {
   });
 }
 
-module.exports = { registerWahaRoutes, phoneFromChatId, chatIdFromPhone };
+module.exports = { registerWahaRoutes, phoneFromChatId, chatIdFromPhone, outboundChatId };
