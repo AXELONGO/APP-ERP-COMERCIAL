@@ -65,7 +65,8 @@ let timeOffset = 0;
 })();
 
 const app = express();
-app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : (process.env.TRUST_PROXY || false));
+const trustProxy = process.env.TRUST_PROXY;
+app.set('trust proxy', trustProxy === undefined || trustProxy === 'true' ? 1 : (trustProxy === 'false' ? false : trustProxy));
 const PORT = process.env.PORT || 3000;
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));

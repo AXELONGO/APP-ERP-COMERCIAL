@@ -2,6 +2,7 @@ const { getPool } = require('../config/database');
 const { requireV2Auth, requireRole } = require('../middleware/v2Auth');
 const { getIntegrationConfig } = require('../services/integrationConfig');
 const { sendText, getWahaConfig } = require('../services/wahaClient');
+const PDFDocument = require('pdfkit');
 
 const WRITE_ROLES = ['admin', 'supervisor', 'advisor'];
 const MANAGE_ROLES = ['admin', 'supervisor'];
@@ -60,7 +61,7 @@ function validateForSend(payload, calculated) {
   if (!payload.contact_id) throw badRequest('Selecciona un contacto antes de enviar');
   if (!calculated.items.length) throw badRequest('Agrega al menos un producto o servicio');
   if (calculated.total <= 0) throw badRequest('El total debe ser mayor que cero');
-  if (!payload.valid_until || Number.isNaN(new Date(payload.valid_until).getTime())) throw badRequest('Configura una vigencia válida');
+  if (!payload.valid_until || !/^\d{4}-\d{2}-\d{2}$/.test(String(payload.valid_until).slice(0, 10)) || Number.isNaN(new Date(payload.valid_until).getTime())) throw badRequest('Configura una vigencia válida');
   if (payload.fiscal_data?.requires_invoice) {
     const fiscal = payload.fiscal_data;
     for (const field of ['rfc', 'legal_name', 'tax_address', 'postal_code', 'tax_regime', 'cfdi_use']) {
@@ -81,7 +82,7 @@ function quotePayload(body, calculated) {
   return {
     contact_id: body.contact_id || null,
     currency: body.currency || 'MXN',
-    valid_until: body.valid_until || null,
+    valid_until: body.valid_until ? String(body.valid_until).slice(0, 10) : null,
     ...calculated,
     payment_plan: validatePaymentPlan(body.payment_plan, calculated.total),
     fiscal_data: body.fiscal_data || {},
@@ -278,7 +279,7 @@ function registerQuoteRoutes(app) {
       const contact = await db.query('SELECT * FROM contacts WHERE id=$1 AND workspace_id=$2', [req.params.id, req.workspaceId]);
       if (!contact.rows[0]) return res.status(404).json({ error: 'Contacto no encontrado' });
       const notes = await db.query('SELECT n.*,u.name AS author_name FROM contact_notes n LEFT JOIN users u ON u.id=n.created_by WHERE n.contact_id=$1 AND n.workspace_id=$2 ORDER BY n.created_at DESC', [req.params.id, req.workspaceId]);
-      const history = await db.query(`SELECT event_type,entity_type,entity_id,actor_type,actor_id,after_data,created_at FROM audit_events WHERE workspace_id=$1 AND ((entity_type='contact' AND entity_id=$2) OR (entity_type='quote' AND after_data->>'contact_id'=$2)) ORDER BY created_at DESC LIMIT 100`, [req.workspaceId, req.params.id]);
+      const history = await db.query(`SELECT event_type,entity_type,entity_id,actor_type,actor_id,after_data,created_at FROM audit_events WHERE workspace_id=$1 AND ((entity_type='contact' AND entity_id=$2) OR (entity_type='quote' AND after_data->>'contact_id'=$2::text)) ORDER BY created_at DESC LIMIT 100`, [req.workspaceId, req.params.id]);
       res.json({ data: { contact: contact.rows[0], notes: notes.rows, history: history.rows } });
     } catch (error) { next(error); }
   });
@@ -305,6 +306,38 @@ function registerQuoteRoutes(app) {
       const result = await getPool().query('INSERT INTO contact_notes (workspace_id,contact_id,body,attachments,created_by) SELECT $1,id,$3,$4,$5 FROM contacts WHERE id=$2 AND workspace_id=$1 RETURNING *', [req.workspaceId, req.params.id, req.body.body.trim(), req.body.attachments || [], req.user.sub]);
       if (!result.rows[0]) return res.status(404).json({ error: 'Contacto no encontrado' });
       res.status(201).json({ data: result.rows[0] });
+    } catch (error) { next(error); }
+  });
+
+  app.get('/quote/:id/pdf', async (req, res, next) => {
+    try {
+      const quote = await findQuote(getPool(), null, req.params.id);
+      if (!quote) return res.status(404).json({ error: 'Cotización no encontrada' });
+      const safe = value => String(value ?? '');
+      const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${quote.quote_number || 'cotizacion'}.pdf"`);
+      doc.pipe(res);
+      doc.fillColor('#4f2bb8').fontSize(24).font('Helvetica-Bold').text('LUMARK');
+      doc.fillColor('#17151d').fontSize(18).text(`Cotización ${safe(quote.quote_number)}`);
+      doc.fillColor('#756d80').fontSize(11).font('Helvetica').text(`Cliente: ${safe(quote.contact_name || 'Sin contacto')}`);
+      doc.text(`Fecha de vigencia: ${safe(quote.valid_until || 'No especificada')}`);
+      doc.moveDown();
+      doc.strokeColor('#e8e2f0').moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+      doc.moveDown();
+      for (const item of quote.items || []) {
+        const lineTotal = Number(item.quantity || 0) * Number(item.unit_price || 0);
+        doc.fillColor('#17151d').fontSize(11).font('Helvetica-Bold').text(safe(item.name));
+        doc.font('Helvetica').fillColor('#756d80').text(`${item.quantity} x ${quote.currency} ${Number(item.unit_price).toFixed(2)} = ${quote.currency} ${lineTotal.toFixed(2)}`);
+        if (item.description) doc.text(safe(item.description));
+        doc.moveDown(0.5);
+      }
+      doc.moveDown();
+      doc.fillColor('#17151d').fontSize(12).font('Helvetica').text(`Subtotal: ${quote.currency} ${Number(quote.subtotal).toFixed(2)}`);
+      doc.text(`Impuestos: ${quote.currency} ${Number(quote.tax_amount).toFixed(2)}`);
+      doc.font('Helvetica-Bold').fontSize(18).text(`Total: ${quote.currency} ${Number(quote.total).toFixed(2)}`);
+      if (quote.message) { doc.moveDown(); doc.font('Helvetica').fontSize(11).text(safe(quote.message)); }
+      doc.end();
     } catch (error) { next(error); }
   });
 }
