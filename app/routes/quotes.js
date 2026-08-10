@@ -11,6 +11,12 @@ function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
+function dateOnly(value) {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+}
+
 function normalizeItems(items = []) {
   if (!Array.isArray(items)) throw badRequest('items debe ser un arreglo');
   return items.map((item, index) => {
@@ -61,7 +67,7 @@ function validateForSend(payload, calculated) {
   if (!payload.contact_id) throw badRequest('Selecciona un contacto antes de enviar');
   if (!calculated.items.length) throw badRequest('Agrega al menos un producto o servicio');
   if (calculated.total <= 0) throw badRequest('El total debe ser mayor que cero');
-  if (!payload.valid_until || !/^\d{4}-\d{2}-\d{2}$/.test(String(payload.valid_until).slice(0, 10)) || Number.isNaN(new Date(payload.valid_until).getTime())) throw badRequest('Configura una vigencia válida');
+  if (!dateOnly(payload.valid_until)) throw badRequest('Configura una vigencia válida');
   if (payload.fiscal_data?.requires_invoice) {
     const fiscal = payload.fiscal_data;
     for (const field of ['rfc', 'legal_name', 'tax_address', 'postal_code', 'tax_regime', 'cfdi_use']) {
@@ -82,7 +88,7 @@ function quotePayload(body, calculated) {
   return {
     contact_id: body.contact_id || null,
     currency: body.currency || 'MXN',
-    valid_until: body.valid_until ? String(body.valid_until).slice(0, 10) : null,
+    valid_until: dateOnly(body.valid_until),
     ...calculated,
     payment_plan: validatePaymentPlan(body.payment_plan, calculated.total),
     fiscal_data: body.fiscal_data || {},
